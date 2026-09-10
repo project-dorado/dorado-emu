@@ -6,4 +6,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Mono.Cecil" Version="0.11.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dorado.Containers\Dorado.Containers.csproj" />
+    <ProjectReference Include="..\Dorado.Xna\Dorado.Xna.csproj" />
+    <ProjectReference Include="..\Dorado.Xna.Game\Dorado.Xna.Game.csproj" />
+    <ProjectReference Include="..\Dorado.Platform.Abstractions\Dorado.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
 </Project>

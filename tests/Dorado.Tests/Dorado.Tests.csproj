@@ -26,6 +26,8 @@
     <ProjectReference Include="..\..\src\Dorado.Containers\Dorado.Containers.csproj" />
     <ProjectReference Include="..\..\src\Dorado.Xna\Dorado.Xna.csproj" />
     <ProjectReference Include="..\..\src\Dorado.Runtime\Dorado.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\Dorado.Platform.Desktop\Dorado.Platform.Desktop.csproj" />
+    <ProjectReference Include="..\..\src\Dorado.Platform.Abstractions\Dorado.Platform.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

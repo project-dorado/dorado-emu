@@ -4,6 +4,7 @@
     <ProjectReference Include="..\Dorado.Containers\Dorado.Containers.csproj" />
     <ProjectReference Include="..\Dorado.Xna\Dorado.Xna.csproj" />
     <ProjectReference Include="..\Dorado.Runtime\Dorado.Runtime.csproj" />
+    <ProjectReference Include="..\Dorado.Platform.Desktop\Dorado.Platform.Desktop.csproj" />
   </ItemGroup>
 
   <PropertyGroup>

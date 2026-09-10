@@ -1,6 +1,8 @@
 ﻿using System.Globalization;
 using System.Text;
 using Dorado.Containers;
+using Dorado.Platform.Desktop.Software;
+using Dorado.Runtime;
 
 namespace Dorado.Cli;
 
@@ -20,12 +22,13 @@ internal static class Program
             {
                 "inspect" => Inspect(args),
                 "unpack" => Unpack(args),
-                "run" => RunStub(args),
+                "refs" => Refs(args),
+                "run" => Run(args),
                 "-h" or "--help" or "help" => PrintUsage(),
                 _ => Unknown(args[0]),
             };
         }
-        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ZuneAppException)
         {
             Console.Error.WriteLine($"error: {ex.Message}");
             return 2;
@@ -112,10 +115,123 @@ internal static class Program
         return 0;
     }
 
-    private static int RunStub(string[] args)
+    private static int Refs(string[] args)
     {
-        Console.Error.WriteLine("run: the managed XNA runtime lands in M1; container parsing is available via 'inspect'/'unpack'.");
-        return 4;
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("usage: dorado refs <assembly>");
+            return 1;
+        }
+
+        AssemblyReferenceReport report = AssemblyInspector.Inspect(args[1]);
+
+        Console.WriteLine("assembly references:");
+        foreach (string reference in report.AssemblyReferences)
+        {
+            Console.WriteLine($"  {reference}");
+        }
+
+        if (report.TypeReferences.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("type references:");
+            foreach (string type in report.TypeReferences.Where(t => t.StartsWith("Microsoft.Xna", StringComparison.Ordinal)))
+            {
+                Console.WriteLine($"  {type}");
+            }
+        }
+
+        if (report.XnaDerivedTypes.Count > 0)
+        {
+            Console.WriteLine();
+            Console.WriteLine("types deriving from XNA:");
+            foreach (string type in report.XnaDerivedTypes)
+            {
+                Console.WriteLine($"  {type}");
+            }
+        }
+
+        Console.WriteLine();
+        Console.WriteLine("member references:");
+        foreach (var (type, members) in report.MemberReferences)
+        {
+            Console.WriteLine($"  {type}");
+            foreach (string member in members)
+            {
+                Console.WriteLine($"    {member}");
+            }
+        }
+
+        return 0;
+    }
+
+    private static int Run(string[] args)
+    {
+        if (args.Length < 2)
+        {
+            Console.Error.WriteLine("usage: dorado run <package> [--frames N] [--out frame.png]");
+            return 1;
+        }
+
+        int frames = 60;
+        string? outPath = null;
+        bool hash = false;
+        for (int i = 2; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--frames" when i + 1 < args.Length:
+                    frames = int.Parse(args[++i], CultureInfo.InvariantCulture);
+                    break;
+                case "--out" when i + 1 < args.Length:
+                    outPath = args[++i];
+                    break;
+                case "--hash":
+                    hash = true;
+                    break;
+            }
+        }
+
+        ZunePackage package = ZunePackageReader.Read(args[1]);
+        var backend = new SoftwareGraphicsBackend();
+
+        ZuneRunResult result = ZuneAppRunner.Run(package, new ZuneRunOptions
+        {
+            Graphics = backend,
+            Input = ScriptedInputSource.Empty,
+            FrameLimit = frames,
+            OnFrameRendered = frame =>
+            {
+                if (outPath is not null && frame == frames - 1)
+                {
+                    backend.SavePng(outPath);
+                }
+            },
+        });
+
+        Console.WriteLine($"ran {result.FramesRendered} frame(s) of {result.EntryPoint}");
+        if (outPath is not null)
+        {
+            Console.WriteLine($"frame -> {outPath}");
+        }
+
+        if (hash)
+        {
+            Console.WriteLine($"frame-sha256 {FrameHash(backend.SnapshotBackbuffer())}");
+        }
+
+        return 0;
+    }
+
+    private static string FrameHash(uint[] pixels)
+    {
+        var bytes = new byte[pixels.Length * 4];
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(i * 4), pixels[i]);
+        }
+
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
     }
 
     private static int Unknown(string command)
@@ -134,6 +250,7 @@ internal static class Program
             usage:
               dorado inspect <package>            show container metadata and files
               dorado unpack  <package> <outDir>   extract an unencrypted package
+              dorado refs    <assembly>           list assembly/member references
               dorado run     <package>            run a package (M1)
 
             packages: .ccgame (XNA cabinet) and .zcp (NX container)

@@ -40,11 +40,29 @@ deliberately early.
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | `.ccgame` (CAB/XCab) + `.zcp` (NX) parsers, CLI, tests | ✅ done |
-| M1 | Desktop XNA 3.1 shim; run homebrew prebuilt apps; golden frames | ⬜ next |
+| M1 | Desktop XNA 3.1 shim; run homebrew prebuilt apps; golden frames | ✅ done |
 | M2 | Android host (EGL/GLES3/AAudio) + `dorado-hd` module | ⬜ |
 | M3 | Corpus coverage, XNB types, `.ccgame`→`.zcp` writer | ⬜ |
 | M4 | User-supplied DRM key bridge | ⬜ |
 | M5 | Optional full-system Tegra APX 2600 + WinCE 6.0 core | ⬜ |
+
+### M1 results
+
+- **Runtime.** `Dorado.Runtime` extracts a package, then loads its managed
+  assembly in a custom `AssemblyLoadContext` that maps the Compact Framework and
+  XNA 3.1 assembly identities onto the running framework and the shims. The real
+  `ZunePong.exe` / `ZuneHDDemo.exe` entry points execute.
+- **Shims.** `Microsoft.Xna.Framework` (core) and `Microsoft.Xna.Framework.Game`
+  are clean-room, identity-matched assemblies (`3.1.0.0`) covering the exact
+  member surface the two M1 titles use: Game loop, SpriteBatch, GraphicsDevice,
+  ContentManager + XNB, Color/Vector/Rectangle/BoundingBox, Viewport,
+  RenderTarget2D, and Keyboard/GamePad/Touch/Accelerometer.
+- **Backend.** A deterministic headless software rasterizer
+  (`Dorado.Platform.Desktop`) with premultiplied blitting, rotation/scale/flip,
+  render targets, and a self-contained PNG writer.
+- **Verified.** `XNA Pong` and `Etch-A-Sketch` render deterministic 480x272
+  frames; golden hashes are asserted in `M1RuntimeTests`, and a scripted touch
+  stream draws strokes (proving input plumbing).
 
 ### M0 results
 
@@ -73,10 +91,21 @@ specification of both container types.
 ```bash
 dotnet build Dorado.sln -c Release
 dotnet test  Dorado.sln
-dotnet run --project src/Dorado.Cli -- inspect <package>
 
 # fetch a local test corpus (git-ignored; see corpus/LICENSE-MANIFEST.md)
 tools/corpus-fetch.sh
+```
+
+## Quick start
+
+```bash
+CLI="dotnet run --project src/Dorado.Cli --"
+
+$CLI inspect "corpus/XNA Pong.ccgame"          # container metadata + files
+$CLI refs    path/to/App.exe                    # assembly/member references
+$CLI unpack  "corpus/XNA Pong.ccgame" out/      # extract an unencrypted package
+$CLI run     "corpus/XNA Pong.ccgame" --frames 20 --hash
+$CLI run     "corpus/Etch-A-Sketch.ccgame" --frames 20 --out frame.png
 ```
 
 Requires the .NET 8 SDK. The Android host (`net8.0-android`) additionally

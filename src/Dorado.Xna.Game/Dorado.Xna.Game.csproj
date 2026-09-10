@@ -2,15 +2,16 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <AssemblyName>Microsoft.Xna.Framework</AssemblyName>
+    <AssemblyName>Microsoft.Xna.Framework.Game</AssemblyName>
     <RootNamespace>Microsoft.Xna.Framework</RootNamespace>
     <Version>3.1.0.0</Version>
     <AssemblyVersion>3.1.0.0</AssemblyVersion>
     <FileVersion>3.1.0.0</FileVersion>
-    <Description>Clean-room Microsoft.Xna.Framework 3.1 compatibility shim (core). Not affiliated with Microsoft.</Description>
+    <Description>Clean-room Microsoft.Xna.Framework.Game 3.1 compatibility shim. Not affiliated with Microsoft.</Description>
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Dorado.Xna/Dorado.Xna.csproj" />
     <ProjectReference Include="../Dorado.Platform.Abstractions/Dorado.Platform.Abstractions.csproj" />
   </ItemGroup>
 
