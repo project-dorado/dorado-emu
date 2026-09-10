@@ -1,18 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\Dorado.Containers\Dorado.Containers.csproj" />
     <ProjectReference Include="..\Dorado.Xna\Dorado.Xna.csproj" />
     <ProjectReference Include="..\Dorado.Runtime\Dorado.Runtime.csproj" />
     <ProjectReference Include="..\Dorado.Platform.Desktop\Dorado.Platform.Desktop.csproj" />
-    <ProjectReference Include="..\Dorado.Cli.Ipc\Dorado.Cli.Ipc.csproj" />
+    <!--
+      Dorado.Plugins.Protocol is a sibling-repo assembly (project-dorado/dorado).
+      It is a pure POCO project (System.Text.Json only) so it doesn't drag the
+      desktop UI/Audio closure into the emulator build.
+    -->
+    <ProjectReference Include="..\..\..\dorado\src\Dorado.Plugins.Protocol\Dorado.Plugins.Protocol.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>Library</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>Dorado.Cli.Ipc</RootNamespace>
+    <AssemblyName>Dorado.Cli.Ipc</AssemblyName>
   </PropertyGroup>
 
 </Project>

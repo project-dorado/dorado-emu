@@ -19,8 +19,18 @@ jobs:
       - name: Restore
         run: dotnet restore Dorado.sln
 
-      - name: Build
-        run: dotnet build Dorado.sln -c Release --no-restore
+      - name: Build (Release, zero-warning policy)
+        run: dotnet build Dorado.sln -c Release --no-restore /warnaserror
 
-      - name: Test
-        run: dotnet test Dorado.sln -c Release --no-build
+      # The suite includes the `EmulatorRpcServerTests` headless-validation
+      # fixtures, which drive the `--ipc` JSON-RPC bridge over paired in-memory
+      # transports against self-authored synthetic .ccgame/.zcp images. No
+      # corpus is fetched, so this runs on every push without licensing risk.
+      - name: Test (unit + container + IPC headless validation)
+        run: dotnet test Dorado.sln -c Release --no-build --nologo
+
+      # Golden-frame renderer regressions are part of M1RuntimeTests; they
+      # no-op when the local corpus is absent, so this stays green.
+      - name: Corpus-backed golden frames (when present)
+        run: dotnet test Dorado.sln -c Release --no-build --nologo \
+          --filter "FullyQualifiedName~M1RuntimeTests"

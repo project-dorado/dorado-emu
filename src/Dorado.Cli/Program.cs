@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Text;
+using Dorado.Cli.Ipc;
 using Dorado.Containers;
 using Dorado.Platform.Desktop.Software;
 using Dorado.Runtime;
@@ -8,12 +9,18 @@ namespace Dorado.Cli;
 
 internal static class Program
 {
-    private static int Main(string[] args)
+    private static async Task<int> Main(string[] args)
     {
         if (args.Length == 0)
         {
             PrintUsage();
             return 1;
+        }
+
+        if (args[0].Equals("--ipc", StringComparison.OrdinalIgnoreCase))
+        {
+            await RunIpcAsync();
+            return 0;
         }
 
         try
@@ -33,6 +40,19 @@ internal static class Program
             Console.Error.WriteLine($"error: {ex.Message}");
             return 2;
         }
+    }
+
+    private static async Task RunIpcAsync()
+    {
+        await using var transport = new StdioLineTransport(Console.In, Console.Out);
+        await using var server = new EmulatorRpcServer(transport);
+        var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            cts.Cancel();
+        };
+        await server.ServeAsync(cts.Token);
     }
 
     private static int Inspect(string[] args)
