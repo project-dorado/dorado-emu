@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Test results
+TestResults/
+*.trx
+*.coverage
+
+# Local corpus / fixtures (copyrighted content is never committed)
+/corpus/*
+!/corpus/.gitkeep
+!/corpus/LICENSE-MANIFEST.md
+
+# Package artifacts
+*.nupkg
+*.snupkg
+
+# Native build output
+/src/Dorado.Android.Native/build/
+*.so
+*.a
+*.o
+
+# OS
+.DS_Store
+Thumbs.db
