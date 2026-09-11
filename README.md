@@ -32,10 +32,11 @@ XNA graphics/audio/input onto the host platform.
 
 ## Status
 
-**M0 — Foundation.** Container parsing is implemented; the XNA shim and runtime
-are in progress. There is no working Zune emulator anywhere in the world
-(GametechWiki: *"THERE ARE CURRENTLY NO EMULATORS FOR THIS DEVICE"*) — Dorado is
-deliberately early.
+**M0 + M1 complete.** Container parsing (`.ccgame`/`.zcp`) and a working desktop
+XNA 3.1 runtime that renders golden frames are implemented and covered by **27
+tests**. There is no working Zune emulator anywhere in the world
+(GametechWiki: *"THERE ARE CURRENTLY NO EMULATORS FOR THIS DEVICE"*) — the M2
+Android host is next, so Dorado remains deliberately early.
 
 | Milestone | Scope | Status |
 |---|---|---|

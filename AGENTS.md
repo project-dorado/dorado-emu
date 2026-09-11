@@ -26,8 +26,8 @@ compatibility shim. It is consumed by the `dorado-hd` Android client.
 - `src/Dorado.Runtime` — CF 3.5 → modern .NET assembly-identity remap and app loading.
 - `src/Dorado.Xna` — `Microsoft.Xna.Framework` 3.1 shim (assembly identity `3.1.0.0`).
 - `src/Dorado.Platform.*` — graphic/audio/input backends.
-- `src/Dorado.Cli` — `dorado inspect|unpack|run`.
-- `docs/` — container formats, architecture, DRM key import.
+- `src/Dorado.Cli` — `dorado inspect|refs|unpack|run` (+ the JSON-RPC IPC bridge used by the desktop).
+- `docs/` — container formats, architecture, DRM key import, mini-app parity, ZCP cross-validation.
 
 ## Build / test
 
