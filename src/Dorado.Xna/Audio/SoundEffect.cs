@@ -18,6 +18,9 @@ public sealed class SoundEffect : IDisposable
         }
     }
 
+    internal static SoundEffect FromRaw(byte[] pcm, byte[] format, int durationMs, int loopStart, int loopLength) =>
+        new(pcm, format, 0, format.Length, durationMs, loopStart, loopLength);
+
     public static float MasterVolume { get; set; } = 1f;
 
     public static float DistanceScale { get; set; } = 1f;

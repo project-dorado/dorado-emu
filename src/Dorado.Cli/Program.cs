@@ -12,6 +12,9 @@ internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+            Console.Error.WriteLine($"unhandled: {e.ExceptionObject}");
+
         if (args.Length == 0)
         {
             PrintUsage();

@@ -40,6 +40,8 @@ public class SpriteFont : GraphicsResource
 
     public ReadOnlyCollection<char> CharacterMap => _characterMap;
 
+    public ReadOnlyCollection<char> Characters => _characterMap;
+
     public ReadOnlyCollection<Vector3> Kerning => _kerning;
 
     public int LineSpacing { get; set; }

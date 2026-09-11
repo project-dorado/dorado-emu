@@ -126,6 +126,292 @@ public struct Vector2 : IEquatable<Vector2>
     public override readonly int GetHashCode() => HashCode.Combine(X, Y);
 
     public override readonly string ToString() => $"{{X:{X} Y:{Y}}}";
+
+    public static void Distance(ref Vector2 value1, ref Vector2 value2, out float result) =>
+        result = Distance(value1, value2);
+
+    public static void DistanceSquared(ref Vector2 value1, ref Vector2 value2, out float result) =>
+        result = DistanceSquared(value1, value2);
+
+    public static void Dot(ref Vector2 value1, ref Vector2 value2, out float result) => result = Dot(value1, value2);
+
+    public static void Normalize(ref Vector2 value, out Vector2 result) => result = Normalize(value);
+
+    public static Vector2 Reflect(Vector2 vector, Vector2 normal) => vector - (2f * Dot(vector, normal) * normal);
+
+    public static void Reflect(ref Vector2 vector, ref Vector2 normal, out Vector2 result) =>
+        result = Reflect(vector, normal);
+
+    public static void Min(ref Vector2 value1, ref Vector2 value2, out Vector2 result) => result = Min(value1, value2);
+
+    public static void Max(ref Vector2 value1, ref Vector2 value2, out Vector2 result) => result = Max(value1, value2);
+
+    public static void Clamp(ref Vector2 value1, ref Vector2 min, ref Vector2 max, out Vector2 result) =>
+        result = Clamp(value1, min, max);
+
+    public static void Lerp(ref Vector2 value1, ref Vector2 value2, float amount, out Vector2 result) =>
+        result = Lerp(value1, value2, amount);
+
+    public static Vector2 Barycentric(Vector2 value1, Vector2 value2, Vector2 value3, float amount1, float amount2) =>
+        new(
+            MathHelper.Barycentric(value1.X, value2.X, value3.X, amount1, amount2),
+            MathHelper.Barycentric(value1.Y, value2.Y, value3.Y, amount1, amount2));
+
+    public static void Barycentric(
+        ref Vector2 value1,
+        ref Vector2 value2,
+        ref Vector2 value3,
+        float amount1,
+        float amount2,
+        out Vector2 result) =>
+        result = Barycentric(value1, value2, value3, amount1, amount2);
+
+    public static Vector2 SmoothStep(Vector2 value1, Vector2 value2, float amount) =>
+        new(
+            MathHelper.SmoothStep(value1.X, value2.X, amount),
+            MathHelper.SmoothStep(value1.Y, value2.Y, amount));
+
+    public static void SmoothStep(ref Vector2 value1, ref Vector2 value2, float amount, out Vector2 result) =>
+        result = SmoothStep(value1, value2, amount);
+
+    public static Vector2 CatmullRom(Vector2 value1, Vector2 value2, Vector2 value3, Vector2 value4, float amount) =>
+        new(
+            MathHelper.CatmullRom(value1.X, value2.X, value3.X, value4.X, amount),
+            MathHelper.CatmullRom(value1.Y, value2.Y, value3.Y, value4.Y, amount));
+
+    public static void CatmullRom(
+        ref Vector2 value1,
+        ref Vector2 value2,
+        ref Vector2 value3,
+        ref Vector2 value4,
+        float amount,
+        out Vector2 result) =>
+        result = CatmullRom(value1, value2, value3, value4, amount);
+
+    public static Vector2 Hermite(
+        Vector2 value1,
+        Vector2 tangent1,
+        Vector2 value2,
+        Vector2 tangent2,
+        float amount) =>
+        new(
+            MathHelper.Hermite(value1.X, tangent1.X, value2.X, tangent2.X, amount),
+            MathHelper.Hermite(value1.Y, tangent1.Y, value2.Y, tangent2.Y, amount));
+
+    public static void Hermite(
+        ref Vector2 value1,
+        ref Vector2 tangent1,
+        ref Vector2 value2,
+        ref Vector2 tangent2,
+        float amount,
+        out Vector2 result) =>
+        result = Hermite(value1, tangent1, value2, tangent2, amount);
+
+    public static Vector2 Transform(Vector2 position, Matrix matrix)
+    {
+        float x = (position.X * matrix.M11) + (position.Y * matrix.M21) + matrix.M41;
+        float y = (position.X * matrix.M12) + (position.Y * matrix.M22) + matrix.M42;
+        float w = (position.X * matrix.M14) + (position.Y * matrix.M24) + matrix.M44;
+        if (w != 1f)
+        {
+            float inverse = 1f / w;
+            return new Vector2(x * inverse, y * inverse);
+        }
+
+        return new Vector2(x, y);
+    }
+
+    public static void Transform(ref Vector2 position, ref Matrix matrix, out Vector2 result) =>
+        result = Transform(position, matrix);
+
+    public static Vector2 TransformNormal(Vector2 normal, Matrix matrix) =>
+        new(
+            (normal.X * matrix.M11) + (normal.Y * matrix.M21),
+            (normal.X * matrix.M12) + (normal.Y * matrix.M22));
+
+    public static void TransformNormal(ref Vector2 normal, ref Matrix matrix, out Vector2 result) =>
+        result = TransformNormal(normal, matrix);
+
+    public static Vector2 Transform(Vector2 value, Quaternion rotation)
+    {
+        float x2 = rotation.X + rotation.X;
+        float y2 = rotation.Y + rotation.Y;
+        float z2 = rotation.Z + rotation.Z;
+        float wx = rotation.W * x2;
+        float wy = rotation.W * y2;
+        float wz = rotation.W * z2;
+        float xx = rotation.X * x2;
+        float xy = rotation.X * y2;
+        float yy = rotation.Y * y2;
+        float zz = rotation.Z * z2;
+
+        return new Vector2(
+            (value.X * (1f - yy - zz)) + (value.Y * (xy - wz)),
+            (value.X * (xy + wz)) + (value.Y * (1f - xx - zz)));
+    }
+
+    public static void Transform(ref Vector2 value, ref Quaternion rotation, out Vector2 result) =>
+        result = Transform(value, rotation);
+
+    public static void Transform(Vector2[] sourceArray, ref Matrix matrix, Vector2[] destinationArray)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (destinationArray.Length < sourceArray.Length)
+        {
+            throw new ArgumentException("The destination array is too small.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < sourceArray.Length; i++)
+        {
+            Transform(ref sourceArray[i], ref matrix, out destinationArray[i]);
+        }
+    }
+
+    public static void Transform(
+        Vector2[] sourceArray,
+        int sourceIndex,
+        ref Matrix matrix,
+        Vector2[] destinationArray,
+        int destinationIndex,
+        int length)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (sourceIndex < 0 || length < 0 || sourceIndex + length > sourceArray.Length)
+        {
+            throw new ArgumentException("The source range is outside the array.", nameof(sourceArray));
+        }
+
+        if (destinationIndex < 0 || destinationIndex + length > destinationArray.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            Transform(ref sourceArray[sourceIndex + i], ref matrix, out destinationArray[destinationIndex + i]);
+        }
+    }
+
+    public static void TransformNormal(Vector2[] sourceArray, ref Matrix matrix, Vector2[] destinationArray)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (destinationArray.Length < sourceArray.Length)
+        {
+            throw new ArgumentException("The destination array is too small.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < sourceArray.Length; i++)
+        {
+            TransformNormal(ref sourceArray[i], ref matrix, out destinationArray[i]);
+        }
+    }
+
+    public static void TransformNormal(
+        Vector2[] sourceArray,
+        int sourceIndex,
+        ref Matrix matrix,
+        Vector2[] destinationArray,
+        int destinationIndex,
+        int length)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (sourceIndex < 0 || length < 0 || sourceIndex + length > sourceArray.Length)
+        {
+            throw new ArgumentException("The source range is outside the array.", nameof(sourceArray));
+        }
+
+        if (destinationIndex < 0 || destinationIndex + length > destinationArray.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            TransformNormal(ref sourceArray[sourceIndex + i], ref matrix, out destinationArray[destinationIndex + i]);
+        }
+    }
+
+    public static void Transform(Vector2[] sourceArray, ref Quaternion rotation, Vector2[] destinationArray)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (destinationArray.Length < sourceArray.Length)
+        {
+            throw new ArgumentException("The destination array is too small.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < sourceArray.Length; i++)
+        {
+            Transform(ref sourceArray[i], ref rotation, out destinationArray[i]);
+        }
+    }
+
+    public static void Transform(
+        Vector2[] sourceArray,
+        int sourceIndex,
+        ref Quaternion rotation,
+        Vector2[] destinationArray,
+        int destinationIndex,
+        int length)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (sourceIndex < 0 || length < 0 || sourceIndex + length > sourceArray.Length)
+        {
+            throw new ArgumentException("The source range is outside the array.", nameof(sourceArray));
+        }
+
+        if (destinationIndex < 0 || destinationIndex + length > destinationArray.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            Transform(ref sourceArray[sourceIndex + i], ref rotation, out destinationArray[destinationIndex + i]);
+        }
+    }
+
+    public static Vector2 Negate(Vector2 value) => new(-value.X, -value.Y);
+
+    public static void Negate(ref Vector2 value, out Vector2 result) => result = Negate(value);
+
+    public static Vector2 Add(Vector2 value1, Vector2 value2) => new(value1.X + value2.X, value1.Y + value2.Y);
+
+    public static void Add(ref Vector2 value1, ref Vector2 value2, out Vector2 result) => result = Add(value1, value2);
+
+    public static Vector2 Subtract(Vector2 value1, Vector2 value2) => new(value1.X - value2.X, value1.Y - value2.Y);
+
+    public static void Subtract(ref Vector2 value1, ref Vector2 value2, out Vector2 result) =>
+        result = Subtract(value1, value2);
+
+    public static Vector2 Multiply(Vector2 value1, Vector2 value2) => new(value1.X * value2.X, value1.Y * value2.Y);
+
+    public static void Multiply(ref Vector2 value1, ref Vector2 value2, out Vector2 result) =>
+        result = Multiply(value1, value2);
+
+    public static Vector2 Multiply(Vector2 value1, float scaleFactor) =>
+        new(value1.X * scaleFactor, value1.Y * scaleFactor);
+
+    public static void Multiply(ref Vector2 value1, float scaleFactor, out Vector2 result) =>
+        result = Multiply(value1, scaleFactor);
+
+    public static Vector2 Divide(Vector2 value1, Vector2 value2) => new(value1.X / value2.X, value1.Y / value2.Y);
+
+    public static void Divide(ref Vector2 value1, ref Vector2 value2, out Vector2 result) =>
+        result = Divide(value1, value2);
+
+    public static Vector2 Divide(Vector2 value1, float divider) => new(value1.X / divider, value1.Y / divider);
+
+    public static void Divide(ref Vector2 value1, float divider, out Vector2 result) => result = Divide(value1, divider);
+
+    public static Vector2 operator *(Vector2 value1, Vector2 value2) => Multiply(value1, value2);
+
+    public static Vector2 operator /(Vector2 value1, Vector2 value2) => Divide(value1, value2);
 }
 
 /// <summary>A three-component floating-point vector.</summary>
@@ -247,6 +533,317 @@ public struct Vector3 : IEquatable<Vector3>
     public override readonly int GetHashCode() => HashCode.Combine(X, Y, Z);
 
     public override readonly string ToString() => $"{{X:{X} Y:{Y} Z:{Z}}}";
+
+    public static void Distance(ref Vector3 value1, ref Vector3 value2, out float result) =>
+        result = Distance(value1, value2);
+
+    public static float DistanceSquared(Vector3 value1, Vector3 value2)
+    {
+        float dx = value1.X - value2.X;
+        float dy = value1.Y - value2.Y;
+        float dz = value1.Z - value2.Z;
+        return (dx * dx) + (dy * dy) + (dz * dz);
+    }
+
+    public static void DistanceSquared(ref Vector3 value1, ref Vector3 value2, out float result) =>
+        result = DistanceSquared(value1, value2);
+
+    public static void Dot(ref Vector3 value1, ref Vector3 value2, out float result) => result = Dot(value1, value2);
+
+    public static void Normalize(ref Vector3 value, out Vector3 result) => result = Normalize(value);
+
+    public static void Cross(ref Vector3 value1, ref Vector3 value2, out Vector3 result) =>
+        result = Cross(value1, value2);
+
+    public static Vector3 Reflect(Vector3 vector, Vector3 normal) => vector - (2f * Dot(vector, normal) * normal);
+
+    public static void Reflect(ref Vector3 vector, ref Vector3 normal, out Vector3 result) =>
+        result = Reflect(vector, normal);
+
+    public static void Min(ref Vector3 value1, ref Vector3 value2, out Vector3 result) => result = Min(value1, value2);
+
+    public static void Max(ref Vector3 value1, ref Vector3 value2, out Vector3 result) => result = Max(value1, value2);
+
+    public static void Clamp(ref Vector3 value1, ref Vector3 min, ref Vector3 max, out Vector3 result) =>
+        result = Clamp(value1, min, max);
+
+    public static void Lerp(ref Vector3 value1, ref Vector3 value2, float amount, out Vector3 result) =>
+        result = Lerp(value1, value2, amount);
+
+    public static Vector3 Barycentric(Vector3 value1, Vector3 value2, Vector3 value3, float amount1, float amount2) =>
+        new(
+            MathHelper.Barycentric(value1.X, value2.X, value3.X, amount1, amount2),
+            MathHelper.Barycentric(value1.Y, value2.Y, value3.Y, amount1, amount2),
+            MathHelper.Barycentric(value1.Z, value2.Z, value3.Z, amount1, amount2));
+
+    public static void Barycentric(
+        ref Vector3 value1,
+        ref Vector3 value2,
+        ref Vector3 value3,
+        float amount1,
+        float amount2,
+        out Vector3 result) =>
+        result = Barycentric(value1, value2, value3, amount1, amount2);
+
+    public static Vector3 SmoothStep(Vector3 value1, Vector3 value2, float amount) =>
+        new(
+            MathHelper.SmoothStep(value1.X, value2.X, amount),
+            MathHelper.SmoothStep(value1.Y, value2.Y, amount),
+            MathHelper.SmoothStep(value1.Z, value2.Z, amount));
+
+    public static void SmoothStep(ref Vector3 value1, ref Vector3 value2, float amount, out Vector3 result) =>
+        result = SmoothStep(value1, value2, amount);
+
+    public static Vector3 CatmullRom(Vector3 value1, Vector3 value2, Vector3 value3, Vector3 value4, float amount) =>
+        new(
+            MathHelper.CatmullRom(value1.X, value2.X, value3.X, value4.X, amount),
+            MathHelper.CatmullRom(value1.Y, value2.Y, value3.Y, value4.Y, amount),
+            MathHelper.CatmullRom(value1.Z, value2.Z, value3.Z, value4.Z, amount));
+
+    public static void CatmullRom(
+        ref Vector3 value1,
+        ref Vector3 value2,
+        ref Vector3 value3,
+        ref Vector3 value4,
+        float amount,
+        out Vector3 result) =>
+        result = CatmullRom(value1, value2, value3, value4, amount);
+
+    public static Vector3 Hermite(
+        Vector3 value1,
+        Vector3 tangent1,
+        Vector3 value2,
+        Vector3 tangent2,
+        float amount) =>
+        new(
+            MathHelper.Hermite(value1.X, tangent1.X, value2.X, tangent2.X, amount),
+            MathHelper.Hermite(value1.Y, tangent1.Y, value2.Y, tangent2.Y, amount),
+            MathHelper.Hermite(value1.Z, tangent1.Z, value2.Z, tangent2.Z, amount));
+
+    public static void Hermite(
+        ref Vector3 value1,
+        ref Vector3 tangent1,
+        ref Vector3 value2,
+        ref Vector3 tangent2,
+        float amount,
+        out Vector3 result) =>
+        result = Hermite(value1, tangent1, value2, tangent2, amount);
+
+    public static Vector3 Transform(Vector3 position, Matrix matrix)
+    {
+        float x = (position.X * matrix.M11) + (position.Y * matrix.M21) + (position.Z * matrix.M31) + matrix.M41;
+        float y = (position.X * matrix.M12) + (position.Y * matrix.M22) + (position.Z * matrix.M32) + matrix.M42;
+        float z = (position.X * matrix.M13) + (position.Y * matrix.M23) + (position.Z * matrix.M33) + matrix.M43;
+        float w = (position.X * matrix.M14) + (position.Y * matrix.M24) + (position.Z * matrix.M34) + matrix.M44;
+        if (w != 1f)
+        {
+            float inverse = 1f / w;
+            return new Vector3(x * inverse, y * inverse, z * inverse);
+        }
+
+        return new Vector3(x, y, z);
+    }
+
+    public static void Transform(ref Vector3 position, ref Matrix matrix, out Vector3 result) =>
+        result = Transform(position, matrix);
+
+    public static Vector3 TransformNormal(Vector3 normal, Matrix matrix) =>
+        new(
+            (normal.X * matrix.M11) + (normal.Y * matrix.M21) + (normal.Z * matrix.M31),
+            (normal.X * matrix.M12) + (normal.Y * matrix.M22) + (normal.Z * matrix.M32),
+            (normal.X * matrix.M13) + (normal.Y * matrix.M23) + (normal.Z * matrix.M33));
+
+    public static void TransformNormal(ref Vector3 normal, ref Matrix matrix, out Vector3 result) =>
+        result = TransformNormal(normal, matrix);
+
+    public static Vector3 Transform(Vector3 value, Quaternion rotation)
+    {
+        float x2 = rotation.X + rotation.X;
+        float y2 = rotation.Y + rotation.Y;
+        float z2 = rotation.Z + rotation.Z;
+        float wx = rotation.W * x2;
+        float wy = rotation.W * y2;
+        float wz = rotation.W * z2;
+        float xx = rotation.X * x2;
+        float xy = rotation.X * y2;
+        float xz = rotation.X * z2;
+        float yy = rotation.Y * y2;
+        float yz = rotation.Y * z2;
+        float zz = rotation.Z * z2;
+
+        return new Vector3(
+            (value.X * (1f - yy - zz)) + (value.Y * (xy - wz)) + (value.Z * (xz + wy)),
+            (value.X * (xy + wz)) + (value.Y * (1f - xx - zz)) + (value.Z * (yz - wx)),
+            (value.X * (xz - wy)) + (value.Y * (yz + wx)) + (value.Z * (1f - xx - yy)));
+    }
+
+    public static void Transform(ref Vector3 value, ref Quaternion rotation, out Vector3 result) =>
+        result = Transform(value, rotation);
+
+    public static void Transform(Vector3[] sourceArray, ref Matrix matrix, Vector3[] destinationArray)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (destinationArray.Length < sourceArray.Length)
+        {
+            throw new ArgumentException("The destination array is too small.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < sourceArray.Length; i++)
+        {
+            Transform(ref sourceArray[i], ref matrix, out destinationArray[i]);
+        }
+    }
+
+    public static void Transform(
+        Vector3[] sourceArray,
+        int sourceIndex,
+        ref Matrix matrix,
+        Vector3[] destinationArray,
+        int destinationIndex,
+        int length)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (sourceIndex < 0 || length < 0 || sourceIndex + length > sourceArray.Length)
+        {
+            throw new ArgumentException("The source range is outside the array.", nameof(sourceArray));
+        }
+
+        if (destinationIndex < 0 || destinationIndex + length > destinationArray.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            Transform(ref sourceArray[sourceIndex + i], ref matrix, out destinationArray[destinationIndex + i]);
+        }
+    }
+
+    public static void TransformNormal(Vector3[] sourceArray, ref Matrix matrix, Vector3[] destinationArray)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (destinationArray.Length < sourceArray.Length)
+        {
+            throw new ArgumentException("The destination array is too small.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < sourceArray.Length; i++)
+        {
+            TransformNormal(ref sourceArray[i], ref matrix, out destinationArray[i]);
+        }
+    }
+
+    public static void TransformNormal(
+        Vector3[] sourceArray,
+        int sourceIndex,
+        ref Matrix matrix,
+        Vector3[] destinationArray,
+        int destinationIndex,
+        int length)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (sourceIndex < 0 || length < 0 || sourceIndex + length > sourceArray.Length)
+        {
+            throw new ArgumentException("The source range is outside the array.", nameof(sourceArray));
+        }
+
+        if (destinationIndex < 0 || destinationIndex + length > destinationArray.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            TransformNormal(ref sourceArray[sourceIndex + i], ref matrix, out destinationArray[destinationIndex + i]);
+        }
+    }
+
+    public static void Transform(Vector3[] sourceArray, ref Quaternion rotation, Vector3[] destinationArray)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (destinationArray.Length < sourceArray.Length)
+        {
+            throw new ArgumentException("The destination array is too small.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < sourceArray.Length; i++)
+        {
+            Transform(ref sourceArray[i], ref rotation, out destinationArray[i]);
+        }
+    }
+
+    public static void Transform(
+        Vector3[] sourceArray,
+        int sourceIndex,
+        ref Quaternion rotation,
+        Vector3[] destinationArray,
+        int destinationIndex,
+        int length)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (sourceIndex < 0 || length < 0 || sourceIndex + length > sourceArray.Length)
+        {
+            throw new ArgumentException("The source range is outside the array.", nameof(sourceArray));
+        }
+
+        if (destinationIndex < 0 || destinationIndex + length > destinationArray.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            Transform(ref sourceArray[sourceIndex + i], ref rotation, out destinationArray[destinationIndex + i]);
+        }
+    }
+
+    public static Vector3 Negate(Vector3 value) => new(-value.X, -value.Y, -value.Z);
+
+    public static void Negate(ref Vector3 value, out Vector3 result) => result = Negate(value);
+
+    public static Vector3 Add(Vector3 value1, Vector3 value2) =>
+        new(value1.X + value2.X, value1.Y + value2.Y, value1.Z + value2.Z);
+
+    public static void Add(ref Vector3 value1, ref Vector3 value2, out Vector3 result) => result = Add(value1, value2);
+
+    public static Vector3 Subtract(Vector3 value1, Vector3 value2) =>
+        new(value1.X - value2.X, value1.Y - value2.Y, value1.Z - value2.Z);
+
+    public static void Subtract(ref Vector3 value1, ref Vector3 value2, out Vector3 result) =>
+        result = Subtract(value1, value2);
+
+    public static Vector3 Multiply(Vector3 value1, Vector3 value2) =>
+        new(value1.X * value2.X, value1.Y * value2.Y, value1.Z * value2.Z);
+
+    public static void Multiply(ref Vector3 value1, ref Vector3 value2, out Vector3 result) =>
+        result = Multiply(value1, value2);
+
+    public static Vector3 Multiply(Vector3 value1, float scaleFactor) =>
+        new(value1.X * scaleFactor, value1.Y * scaleFactor, value1.Z * scaleFactor);
+
+    public static void Multiply(ref Vector3 value1, float scaleFactor, out Vector3 result) =>
+        result = Multiply(value1, scaleFactor);
+
+    public static Vector3 Divide(Vector3 value1, Vector3 value2) =>
+        new(value1.X / value2.X, value1.Y / value2.Y, value1.Z / value2.Z);
+
+    public static void Divide(ref Vector3 value1, ref Vector3 value2, out Vector3 result) =>
+        result = Divide(value1, value2);
+
+    public static Vector3 Divide(Vector3 value1, float divider) =>
+        new(value1.X / divider, value1.Y / divider, value1.Z / divider);
+
+    public static void Divide(ref Vector3 value1, float divider, out Vector3 result) => result = Divide(value1, divider);
+
+    public static Vector3 operator *(Vector3 value1, Vector3 value2) => Multiply(value1, value2);
+
+    public static Vector3 operator /(Vector3 value1, Vector3 value2) => Divide(value1, value2);
 }
 
 /// <summary>A four-component floating-point vector.</summary>
@@ -340,6 +937,308 @@ public struct Vector4 : IEquatable<Vector4>
     public override readonly int GetHashCode() => HashCode.Combine(X, Y, Z, W);
 
     public override readonly string ToString() => $"{{X:{X} Y:{Y} Z:{Z} W:{W}}}";
+
+    public static float Distance(Vector4 value1, Vector4 value2)
+    {
+        float dx = value1.X - value2.X;
+        float dy = value1.Y - value2.Y;
+        float dz = value1.Z - value2.Z;
+        float dw = value1.W - value2.W;
+        return MathF.Sqrt((dx * dx) + (dy * dy) + (dz * dz) + (dw * dw));
+    }
+
+    public static void Distance(ref Vector4 value1, ref Vector4 value2, out float result) =>
+        result = Distance(value1, value2);
+
+    public static float DistanceSquared(Vector4 value1, Vector4 value2)
+    {
+        float dx = value1.X - value2.X;
+        float dy = value1.Y - value2.Y;
+        float dz = value1.Z - value2.Z;
+        float dw = value1.W - value2.W;
+        return (dx * dx) + (dy * dy) + (dz * dz) + (dw * dw);
+    }
+
+    public static void DistanceSquared(ref Vector4 value1, ref Vector4 value2, out float result) =>
+        result = DistanceSquared(value1, value2);
+
+    public static void Dot(ref Vector4 value1, ref Vector4 value2, out float result) => result = Dot(value1, value2);
+
+    public static void Normalize(ref Vector4 value, out Vector4 result) => result = Normalize(value);
+
+    public static Vector4 Min(Vector4 value1, Vector4 value2) => new(
+        MathF.Min(value1.X, value2.X),
+        MathF.Min(value1.Y, value2.Y),
+        MathF.Min(value1.Z, value2.Z),
+        MathF.Min(value1.W, value2.W));
+
+    public static void Min(ref Vector4 value1, ref Vector4 value2, out Vector4 result) => result = Min(value1, value2);
+
+    public static Vector4 Max(Vector4 value1, Vector4 value2) => new(
+        MathF.Max(value1.X, value2.X),
+        MathF.Max(value1.Y, value2.Y),
+        MathF.Max(value1.Z, value2.Z),
+        MathF.Max(value1.W, value2.W));
+
+    public static void Max(ref Vector4 value1, ref Vector4 value2, out Vector4 result) => result = Max(value1, value2);
+
+    public static Vector4 Clamp(Vector4 value1, Vector4 min, Vector4 max) => new(
+        Math.Clamp(value1.X, min.X, max.X),
+        Math.Clamp(value1.Y, min.Y, max.Y),
+        Math.Clamp(value1.Z, min.Z, max.Z),
+        Math.Clamp(value1.W, min.W, max.W));
+
+    public static void Clamp(ref Vector4 value1, ref Vector4 min, ref Vector4 max, out Vector4 result) =>
+        result = Clamp(value1, min, max);
+
+    public static Vector4 Lerp(Vector4 value1, Vector4 value2, float amount) => new(
+        value1.X + ((value2.X - value1.X) * amount),
+        value1.Y + ((value2.Y - value1.Y) * amount),
+        value1.Z + ((value2.Z - value1.Z) * amount),
+        value1.W + ((value2.W - value1.W) * amount));
+
+    public static void Lerp(ref Vector4 value1, ref Vector4 value2, float amount, out Vector4 result) =>
+        result = Lerp(value1, value2, amount);
+
+    public static Vector4 Barycentric(Vector4 value1, Vector4 value2, Vector4 value3, float amount1, float amount2) =>
+        new(
+            MathHelper.Barycentric(value1.X, value2.X, value3.X, amount1, amount2),
+            MathHelper.Barycentric(value1.Y, value2.Y, value3.Y, amount1, amount2),
+            MathHelper.Barycentric(value1.Z, value2.Z, value3.Z, amount1, amount2),
+            MathHelper.Barycentric(value1.W, value2.W, value3.W, amount1, amount2));
+
+    public static void Barycentric(
+        ref Vector4 value1,
+        ref Vector4 value2,
+        ref Vector4 value3,
+        float amount1,
+        float amount2,
+        out Vector4 result) =>
+        result = Barycentric(value1, value2, value3, amount1, amount2);
+
+    public static Vector4 SmoothStep(Vector4 value1, Vector4 value2, float amount) => new(
+        MathHelper.SmoothStep(value1.X, value2.X, amount),
+        MathHelper.SmoothStep(value1.Y, value2.Y, amount),
+        MathHelper.SmoothStep(value1.Z, value2.Z, amount),
+        MathHelper.SmoothStep(value1.W, value2.W, amount));
+
+    public static void SmoothStep(ref Vector4 value1, ref Vector4 value2, float amount, out Vector4 result) =>
+        result = SmoothStep(value1, value2, amount);
+
+    public static Vector4 CatmullRom(Vector4 value1, Vector4 value2, Vector4 value3, Vector4 value4, float amount) =>
+        new(
+            MathHelper.CatmullRom(value1.X, value2.X, value3.X, value4.X, amount),
+            MathHelper.CatmullRom(value1.Y, value2.Y, value3.Y, value4.Y, amount),
+            MathHelper.CatmullRom(value1.Z, value2.Z, value3.Z, value4.Z, amount),
+            MathHelper.CatmullRom(value1.W, value2.W, value3.W, value4.W, amount));
+
+    public static void CatmullRom(
+        ref Vector4 value1,
+        ref Vector4 value2,
+        ref Vector4 value3,
+        ref Vector4 value4,
+        float amount,
+        out Vector4 result) =>
+        result = CatmullRom(value1, value2, value3, value4, amount);
+
+    public static Vector4 Hermite(
+        Vector4 value1,
+        Vector4 tangent1,
+        Vector4 value2,
+        Vector4 tangent2,
+        float amount) =>
+        new(
+            MathHelper.Hermite(value1.X, tangent1.X, value2.X, tangent2.X, amount),
+            MathHelper.Hermite(value1.Y, tangent1.Y, value2.Y, tangent2.Y, amount),
+            MathHelper.Hermite(value1.Z, tangent1.Z, value2.Z, tangent2.Z, amount),
+            MathHelper.Hermite(value1.W, tangent1.W, value2.W, tangent2.W, amount));
+
+    public static void Hermite(
+        ref Vector4 value1,
+        ref Vector4 tangent1,
+        ref Vector4 value2,
+        ref Vector4 tangent2,
+        float amount,
+        out Vector4 result) =>
+        result = Hermite(value1, tangent1, value2, tangent2, amount);
+
+    public static Vector4 Transform(Vector2 position, Matrix matrix) => new(
+        (position.X * matrix.M11) + (position.Y * matrix.M21) + matrix.M41,
+        (position.X * matrix.M12) + (position.Y * matrix.M22) + matrix.M42,
+        (position.X * matrix.M13) + (position.Y * matrix.M23) + matrix.M43,
+        (position.X * matrix.M14) + (position.Y * matrix.M24) + matrix.M44);
+
+    public static void Transform(ref Vector2 position, ref Matrix matrix, out Vector4 result) =>
+        result = Transform(position, matrix);
+
+    public static Vector4 Transform(Vector3 position, Matrix matrix) => new(
+        (position.X * matrix.M11) + (position.Y * matrix.M21) + (position.Z * matrix.M31) + matrix.M41,
+        (position.X * matrix.M12) + (position.Y * matrix.M22) + (position.Z * matrix.M32) + matrix.M42,
+        (position.X * matrix.M13) + (position.Y * matrix.M23) + (position.Z * matrix.M33) + matrix.M43,
+        (position.X * matrix.M14) + (position.Y * matrix.M24) + (position.Z * matrix.M34) + matrix.M44);
+
+    public static void Transform(ref Vector3 position, ref Matrix matrix, out Vector4 result) =>
+        result = Transform(position, matrix);
+
+    public static Vector4 Transform(Vector4 vector, Matrix matrix) => new(
+        (vector.X * matrix.M11) + (vector.Y * matrix.M21) + (vector.Z * matrix.M31) + (vector.W * matrix.M41),
+        (vector.X * matrix.M12) + (vector.Y * matrix.M22) + (vector.Z * matrix.M32) + (vector.W * matrix.M42),
+        (vector.X * matrix.M13) + (vector.Y * matrix.M23) + (vector.Z * matrix.M33) + (vector.W * matrix.M43),
+        (vector.X * matrix.M14) + (vector.Y * matrix.M24) + (vector.Z * matrix.M34) + (vector.W * matrix.M44));
+
+    public static void Transform(ref Vector4 vector, ref Matrix matrix, out Vector4 result) =>
+        result = Transform(vector, matrix);
+
+    public static Vector4 Transform(Vector2 value, Quaternion rotation)
+    {
+        Vector3 rotated = Vector3.Transform(new Vector3(value.X, value.Y, 0f), rotation);
+        return new Vector4(rotated, 1f);
+    }
+
+    public static void Transform(ref Vector2 value, ref Quaternion rotation, out Vector4 result) =>
+        result = Transform(value, rotation);
+
+    public static Vector4 Transform(Vector3 value, Quaternion rotation)
+    {
+        Vector3 rotated = Vector3.Transform(value, rotation);
+        return new Vector4(rotated, 1f);
+    }
+
+    public static void Transform(ref Vector3 value, ref Quaternion rotation, out Vector4 result) =>
+        result = Transform(value, rotation);
+
+    public static Vector4 Transform(Vector4 value, Quaternion rotation)
+    {
+        Vector3 rotated = Vector3.Transform(new Vector3(value.X, value.Y, value.Z), rotation);
+        return new Vector4(rotated, value.W);
+    }
+
+    public static void Transform(ref Vector4 value, ref Quaternion rotation, out Vector4 result) =>
+        result = Transform(value, rotation);
+
+    public static void Transform(Vector4[] sourceArray, ref Matrix matrix, Vector4[] destinationArray)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (destinationArray.Length < sourceArray.Length)
+        {
+            throw new ArgumentException("The destination array is too small.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < sourceArray.Length; i++)
+        {
+            Transform(ref sourceArray[i], ref matrix, out destinationArray[i]);
+        }
+    }
+
+    public static void Transform(
+        Vector4[] sourceArray,
+        int sourceIndex,
+        ref Matrix matrix,
+        Vector4[] destinationArray,
+        int destinationIndex,
+        int length)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (sourceIndex < 0 || length < 0 || sourceIndex + length > sourceArray.Length)
+        {
+            throw new ArgumentException("The source range is outside the array.", nameof(sourceArray));
+        }
+
+        if (destinationIndex < 0 || destinationIndex + length > destinationArray.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            Transform(ref sourceArray[sourceIndex + i], ref matrix, out destinationArray[destinationIndex + i]);
+        }
+    }
+
+    public static void Transform(Vector4[] sourceArray, ref Quaternion rotation, Vector4[] destinationArray)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (destinationArray.Length < sourceArray.Length)
+        {
+            throw new ArgumentException("The destination array is too small.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < sourceArray.Length; i++)
+        {
+            Transform(ref sourceArray[i], ref rotation, out destinationArray[i]);
+        }
+    }
+
+    public static void Transform(
+        Vector4[] sourceArray,
+        int sourceIndex,
+        ref Quaternion rotation,
+        Vector4[] destinationArray,
+        int destinationIndex,
+        int length)
+    {
+        ArgumentNullException.ThrowIfNull(sourceArray);
+        ArgumentNullException.ThrowIfNull(destinationArray);
+        if (sourceIndex < 0 || length < 0 || sourceIndex + length > sourceArray.Length)
+        {
+            throw new ArgumentException("The source range is outside the array.", nameof(sourceArray));
+        }
+
+        if (destinationIndex < 0 || destinationIndex + length > destinationArray.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(destinationArray));
+        }
+
+        for (int i = 0; i < length; i++)
+        {
+            Transform(ref sourceArray[sourceIndex + i], ref rotation, out destinationArray[destinationIndex + i]);
+        }
+    }
+
+    public static Vector4 Negate(Vector4 value) => new(-value.X, -value.Y, -value.Z, -value.W);
+
+    public static void Negate(ref Vector4 value, out Vector4 result) => result = Negate(value);
+
+    public static Vector4 Add(Vector4 value1, Vector4 value2) =>
+        new(value1.X + value2.X, value1.Y + value2.Y, value1.Z + value2.Z, value1.W + value2.W);
+
+    public static void Add(ref Vector4 value1, ref Vector4 value2, out Vector4 result) => result = Add(value1, value2);
+
+    public static Vector4 Subtract(Vector4 value1, Vector4 value2) =>
+        new(value1.X - value2.X, value1.Y - value2.Y, value1.Z - value2.Z, value1.W - value2.W);
+
+    public static void Subtract(ref Vector4 value1, ref Vector4 value2, out Vector4 result) =>
+        result = Subtract(value1, value2);
+
+    public static Vector4 Multiply(Vector4 value1, Vector4 value2) =>
+        new(value1.X * value2.X, value1.Y * value2.Y, value1.Z * value2.Z, value1.W * value2.W);
+
+    public static void Multiply(ref Vector4 value1, ref Vector4 value2, out Vector4 result) =>
+        result = Multiply(value1, value2);
+
+    public static Vector4 Multiply(Vector4 value1, float scaleFactor) =>
+        new(value1.X * scaleFactor, value1.Y * scaleFactor, value1.Z * scaleFactor, value1.W * scaleFactor);
+
+    public static void Multiply(ref Vector4 value1, float scaleFactor, out Vector4 result) =>
+        result = Multiply(value1, scaleFactor);
+
+    public static Vector4 Divide(Vector4 value1, Vector4 value2) =>
+        new(value1.X / value2.X, value1.Y / value2.Y, value1.Z / value2.Z, value1.W / value2.W);
+
+    public static void Divide(ref Vector4 value1, ref Vector4 value2, out Vector4 result) =>
+        result = Divide(value1, value2);
+
+    public static Vector4 Divide(Vector4 value1, float divider) =>
+        new(value1.X / divider, value1.Y / divider, value1.Z / divider, value1.W / divider);
+
+    public static void Divide(ref Vector4 value1, float divider, out Vector4 result) => result = Divide(value1, divider);
+
+    public static Vector4 operator *(Vector4 value1, Vector4 value2) => Multiply(value1, value2);
+
+    public static Vector4 operator /(Vector4 value1, Vector4 value2) => Divide(value1, value2);
 }
 
 /// <summary>An axis-aligned integer rectangle; fields match XNA 3.1.</summary>

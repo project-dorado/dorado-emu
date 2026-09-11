@@ -171,6 +171,16 @@ public static class ZuneAppRunner
             builder.Append(current.GetType().Name).Append(": ").Append(current.Message);
         }
 
+        string? stack = exception.StackTrace;
+        if (!string.IsNullOrEmpty(stack) && Environment.GetEnvironmentVariable("DORADO_TRACE") == "1")
+        {
+            string[] frames = stack.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            foreach (string frame in frames.Take(6))
+            {
+                builder.Append(Environment.NewLine).Append("    ").Append(frame);
+            }
+        }
+
         return builder.ToString();
     }
 
@@ -197,7 +207,54 @@ public static class ZuneAppRunner
             File.WriteAllBytes(destination, payload);
         }
 
+        CreateWindowsPathAliases(directory);
         return directory;
+    }
+
+    /// <summary>
+    /// Titles hard-code Windows-style relative paths (for example
+    /// <c>"Content\Images\bg.png"</c>) that are separators on the device but
+    /// literal characters on the host. Hardlink an alias at each directory
+    /// level so those paths resolve without touching app code.
+    /// </summary>
+    private static void CreateWindowsPathAliases(string directory)
+    {
+        foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
+        {
+            string name = Path.GetFileName(file);
+            if (name.Contains('\\'))
+            {
+                continue;
+            }
+
+            string relative = Path.GetRelativePath(directory, file);
+            string[] parts = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            for (int i = 0; i < parts.Length - 1; i++)
+            {
+                string alias = i == 0
+                    ? Path.Combine(directory, string.Join('\\', parts))
+                    : Path.Combine(directory, Path.Combine(parts[..i]), string.Join('\\', parts[i..]));
+                if (File.Exists(alias))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    File.CreateSymbolicLink(alias, file);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+                {
+                    try
+                    {
+                        File.Copy(file, alias);
+                    }
+                    catch (IOException)
+                    {
+                    }
+                }
+            }
+        }
     }
 
     private static void TryDelete(string directory)

@@ -169,47 +169,6 @@ uint32_t ZDKCloud_CloseObject(uint32_t hCloudObj)
     return 1;
 }
 
-/* ---- ZDKFont: unavailable (framework fonts load from XNB) -------------- */
-
-uint32_t ZDKFont_Create(const char* szTypeface, float fPointSize, uint32_t dwStyle, void** phFont)
-{
-    (void)szTypeface;
-    (void)fPointSize;
-    (void)dwStyle;
-    if (phFont != NULL) *phFont = NULL;
-    return 1;
-}
-
-uint32_t ZDKFont_Destroy(void* hFont)
-{
-    (void)hFont;
-    return 1;
-}
-
-uint32_t ZDKFont_GetFontMetrics(void* hFont, void* pMetrics)
-{
-    (void)hFont;
-    if (pMetrics != NULL) memset(pMetrics, 0, 64);
-    return 1;
-}
-
-uint32_t ZDKFont_GetCharMetrics(void* hFont, uint16_t ch, void* pMetrics)
-{
-    (void)hFont;
-    (void)ch;
-    if (pMetrics != NULL) memset(pMetrics, 0, 64);
-    return 1;
-}
-
-uint32_t ZDKFont_DrawCharToBuffer(
-    void* hFont, uint16_t ch, uint32_t* pvBuffer, int32_t cbBuffer, int32_t cbPitch,
-    int32_t width, int32_t height, int32_t insetX, int32_t insetY)
-{
-    (void)hFont; (void)ch; (void)pvBuffer; (void)cbBuffer; (void)cbPitch;
-    (void)width; (void)height; (void)insetX; (void)insetY;
-    return 1;
-}
-
 /* ---- ZDKMedia: analysis queue is inert --------------------------------- */
 
 uint32_t ZDKMedia_Queue_StartSongAnalysis(uint32_t hSong, uint32_t msecSampleInterval, uint32_t resultsMode)

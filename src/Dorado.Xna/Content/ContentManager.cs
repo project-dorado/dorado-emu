@@ -26,10 +26,15 @@ public class ContentManager : IDisposable
     {
         string path = ResolvePath(assetName);
         byte[] data = File.ReadAllBytes(path);
-        object value = XnbReader.Read(data);
+        object? value = XnbReader.Read(data, this, assetName);
         if (value is T typed)
         {
             return typed;
+        }
+
+        if (value is null)
+        {
+            return default!;
         }
 
         throw new ContentLoadException(

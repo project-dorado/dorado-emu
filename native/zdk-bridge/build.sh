@@ -7,6 +7,6 @@ cd "$(dirname "$0")"
 
 CC="${CC:-cc}"
 "$CC" -O2 -fPIC -shared -std=c11 -Wall -Wextra -Wno-unused-parameter \
-    -o libZDK.so zdk_generated.c zdk_image.c zdk_misc.c -lm
+    -o libZDK.so zdk_generated.c zdk_image.c zdk_font.c zdk_misc.c -lm
 
 echo "built $(pwd)/libZDK.so"

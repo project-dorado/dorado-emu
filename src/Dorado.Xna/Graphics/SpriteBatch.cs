@@ -15,6 +15,14 @@ public class SpriteBatch : IDisposable
 
     public GraphicsDevice GraphicsDevice => _graphicsDevice;
 
+    public bool IsDisposed { get; private set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public object? Tag { get; set; }
+
+    public event EventHandler? Disposing;
+
     public void Begin()
     {
     }
@@ -27,12 +35,56 @@ public class SpriteBatch : IDisposable
     {
     }
 
+    public void Begin(
+        SpriteBlendMode blendMode,
+        SpriteSortMode sortMode,
+        SaveStateMode saveStateMode,
+        Matrix transformMatrix)
+    {
+    }
+
     public void End()
     {
     }
 
     public void Draw(Texture2D texture, Rectangle destinationRectangle, Color color) =>
         Draw(texture, destinationRectangle, null, color);
+
+    public void Draw(
+        Texture2D texture,
+        Rectangle destinationRectangle,
+        Rectangle? sourceRectangle,
+        Color color,
+        float rotation,
+        Vector2 origin,
+        SpriteEffects effects,
+        float layerDepth)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        Rectangle source = sourceRectangle ?? new Rectangle(0, 0, texture.Width, texture.Height);
+        var request = new SpriteDrawRequest
+        {
+            Texture = texture.Backend,
+            HasSource = true,
+            SourceX = source.X,
+            SourceY = source.Y,
+            SourceWidth = source.Width,
+            SourceHeight = source.Height,
+            X = destinationRectangle.X,
+            Y = destinationRectangle.Y,
+            OriginX = origin.X,
+            OriginY = origin.Y,
+            ScaleX = source.Width == 0 ? 0f : destinationRectangle.Width / (float)source.Width,
+            ScaleY = source.Height == 0 ? 0f : destinationRectangle.Height / (float)source.Height,
+            Rotation = rotation,
+            Tint = ToRgba(color),
+            FlipX = (effects & SpriteEffects.FlipHorizontally) != 0,
+            FlipY = (effects & SpriteEffects.FlipVertically) != 0,
+            LayerDepth = layerDepth,
+        };
+
+        _graphicsDevice.Backend.DrawSprite(in request);
+    }
 
     public void Draw(Texture2D texture, Rectangle destinationRectangle, Rectangle? sourceRectangle, Color color)
     {
@@ -216,6 +268,14 @@ public class SpriteBatch : IDisposable
 
     public void Dispose()
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        IsDisposed = true;
+        Disposing?.Invoke(this, EventArgs.Empty);
+        GC.SuppressFinalize(this);
     }
 
     private static Rgba32 ToRgba(Color color) => new(color.R, color.G, color.B, color.A);
