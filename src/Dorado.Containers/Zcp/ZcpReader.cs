@@ -12,8 +12,7 @@ public static class ZcpReader
     private const int ManifestScanWindow = 0x2000;
 
     /// <summary>Returns true when the bytes are an NX container.</summary>
-    public static bool LooksLikeNx(ReadOnlySpan<byte> data) =>
-        data.Length > NxMagicOffset + 1 && data[NxMagicOffset] == (byte)'N' && data[NxMagicOffset + 1] == (byte)'X';
+    public static bool LooksLikeNx(ReadOnlySpan<byte> data) => ZcstfsReader.LooksLikeNx(data);
 
     /// <summary>Reads a <c>.zcp</c> from a file path.</summary>
     public static ZunePackage Read(string path, IDrmKeyProvider? drm = null)
@@ -106,16 +105,42 @@ public static class ZcpReader
             GameGuid = guid,
         };
 
-        var drmGuid = guid is null ? ReadOnlySpan<byte>.Empty : Encoding.ASCII.GetBytes(guid);
-        byte[]? key = drm?.TryGetContentKey(drmGuid, data.AsSpan(0, RecordHeaderSize));
+        bool volumeFound = ZcstfsReader.TryRead(data, drm, guid, out ZcstfsVolume? volume);
+        bool encrypted = volume is null
+            ? BinaryPrimitives.ReadUInt32LittleEndian(data) >= 2
+            : volume.IsEncrypted;
 
-        // Payload decryption (ZCSTFS) is future work (M3/M4). Without a key the
-        // encrypted payload is unreadable; expose manifest metadata only.
-        var files = executable is null
-            ? Array.Empty<PackageFile>()
-            : new[] { new PackageFile(executable, -1, executable) };
+        List<PackageFile> files;
+        Func<string, byte[]?>? entryReader = null;
+        if (volume is not null && !volume.IsEncrypted)
+        {
+            files = volume.Files
+                .Select(file => new PackageFile(file.Path, file.Length, file.Path))
+                .ToList();
+            entryReader = path =>
+            {
+                var match = volume.Files.FirstOrDefault(
+                    file => string.Equals(file.Path, path, StringComparison.OrdinalIgnoreCase));
+                return match is null ? null : volume.ReadFile(match);
+            };
+        }
+        else
+        {
+            // Without a key only the manifest is readable; expose the startup
+            // assembly as a declared-but-unavailable entry.
+            files = executable is null
+                ? []
+                : [new PackageFile(executable, -1, executable)];
+        }
 
-        return new ZunePackage(ContainerKind.Zcp, metadata, files, null, isEncrypted: key is null);
+        return new ZunePackage(
+            ContainerKind.Zcp,
+            metadata,
+            files,
+            entries: null,
+            isEncrypted: encrypted,
+            entryReader: entryReader,
+            volume: volume);
     }
 
     private static int FindTag(byte[] data, int start, int limit, ReadOnlySpan<byte> tag)

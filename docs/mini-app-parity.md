@@ -80,9 +80,10 @@ live backend is reproduced.
 
 ## Remaining parity work
 
-- Official `.zcp` payloads are AES-ECB DRM-encrypted; their game logic is not
-  executable without the marketplace key (`IDrmKeyProvider` seam in
-  `Dorado.Containers`). Native re-implementations remain the parity path.
+- Official `.zcp` payloads are AES-ECB encrypted with a per-package key that the
+  device unwraps (RSA-2048 + provisioned keypack; see `docs/zcp-decryption.md`).
+  Dorado parses the plaintext runtime volume and accepts user-supplied keys via
+  `IDrmKeyProvider`; marketplace logic stays out of reach without an owned key.
 - The 29 native apps are not yet executed through `dorado-emu`; the emulator is
   the runtime for **user-supplied** `.ccgame`/`.zcp` packages, not a replacement
   for the built-in Compose apps.

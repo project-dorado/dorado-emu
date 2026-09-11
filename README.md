@@ -32,19 +32,21 @@ XNA graphics/audio/input onto the host platform.
 
 ## Status
 
-**M0 + M1 complete.** Container parsing (`.ccgame`/`.zcp`) and a working desktop
-XNA 3.1 runtime that renders golden frames are implemented and covered by **27
-tests**. There is no working Zune emulator anywhere in the world
-(GametechWiki: *"THERE ARE CURRENTLY NO EMULATORS FOR THIS DEVICE"*) — the M2
-Android host is next, so Dorado remains deliberately early.
+**M0 + M1 complete, plus ZCSTFS volume parsing.** Container parsing
+(`.ccgame`/`.zcp`), the ZCSTFS mini filesystem, and a working desktop XNA 3.1
+runtime that renders golden frames are implemented and covered by **41 tests**.
+There is no working Zune emulator anywhere in the world (GametechWiki: *"THERE
+ARE CURRENTLY NO EMULATORS FOR THIS DEVICE"*) — the M2 Android host is next, so
+Dorado remains deliberately early.
 
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | `.ccgame` (CAB/XCab) + `.zcp` (NX) parsers, CLI, tests | ✅ done |
 | M1 | Desktop XNA 3.1 shim; run homebrew prebuilt apps; golden frames | ✅ done |
+| M1.5 | ZCSTFS volume reader (runtime volume verified block-by-block), AES key seam | ✅ done |
 | M2 | Android host (EGL/GLES3/AAudio) + `dorado-hd` module | ⬜ |
 | M3 | Corpus coverage, XNB types, `.ccgame`→`.zcp` writer | ⬜ |
-| M4 | User-supplied DRM key bridge | ⬜ |
+| M4 | User-supplied DRM key bridge (key file shipped; device keypack needed) | 🟡 seam |
 | M5 | Optional full-system Tegra APX 2600 + WinCE 6.0 core | ⬜ |
 
 ### M1 results
@@ -70,8 +72,19 @@ Android host is next, so Dorado remains deliberately early.
 - `.ccgame` — MSCF cabinet reader with a managed MSZIP inflater (preset-dictionary
   capable) and full `XCabInfo.resources` decoding, including the `Files` mapping
   table. Validated on single- and multi-folder homebrew packages.
-- `.zcp` — NX header + `EXEC`/`TITL` manifest parsing; encrypted payloads are
-  detected and gated behind `IDrmKeyProvider`.
+- `.zcp` — NX header + `EXEC`/`RTVR`/`TITL` manifest parsing; encrypted payloads
+  are detected and gated behind `IDrmKeyProvider`.
+
+### M1.5 results
+
+- **ZCSTFS volume reader.** `Dorado.Containers` parses the STFS-derived mini
+  filesystem inside `.zcp`: volume descriptor, `0x18`-byte SHA-1/chain hash
+  entries, `0x4000`-byte blocks, and `0x40`-byte directory records. The
+  plaintext runtime volume extracts all ten XNA runtime assemblies, and every
+  stored block's SHA-1 is verified against its hash entry.
+- **Decryption seam.** Marketplace volumes are AES-ECB; `--key-file` supplies
+  unwrapped AES keys for owned content (see `docs/zcp-decryption.md` for the
+  RSA-2048/keypack mechanism the device uses).
 - CLI, unit tests, CI, and corpus tooling.
 
 ## Container formats
@@ -84,8 +97,11 @@ specification of both container types.
   `StartupAssembly`, `GameGuid`, `GameTitle`, `Platform`, `RuntimeProfile`).
   Unencrypted.
 - **`.zcp`** — NX container: header, Authenticode PKCS#7 blob, plaintext
-  `EXEC`/`TITL` manifest, then an AES-ECB encrypted payload. Marketplace DRM keys
-  are not public.
+  `EXEC`/`TITL` manifest, then a **ZCSTFS volume** (an STFS-derived mini
+  filesystem). Format version 1 (the XNA runtime volume) is plaintext; version
+  2 (marketplace) AES-ECB encrypts the volume with a per-package key that
+  arrives RSA-2048-wrapped. See `docs/container-formats.md` and
+  `docs/zcp-decryption.md`.
 
 ## Building
 
@@ -107,6 +123,11 @@ $CLI refs    path/to/App.exe                    # assembly/member references
 $CLI unpack  "corpus/XNA Pong.ccgame" out/      # extract an unencrypted package
 $CLI run     "corpus/XNA Pong.ccgame" --frames 20 --hash
 $CLI run     "corpus/Etch-A-Sketch.ccgame" --frames 20 --out frame.png
+
+$CLI inspect path/to/runtimeZune.v3.1.zcp       # ZCSTFS volume, no key needed
+$CLI unpack  path/to/runtimeZune.v3.1.zcp out/  # extract the ten runtime assemblies
+$CLI inspect path/to/extracted/GametitleApp     # an extracted application directory
+$CLI unpack  "Alarm Clock.zcp" out/ --key-file keys.json   # owned key (docs/zcp-decryption.md)
 ```
 
 Requires the .NET 8 SDK. The Android host (`net8.0-android`) additionally

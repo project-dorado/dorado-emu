@@ -2,6 +2,7 @@
 using System.Text;
 using Dorado.Cli.Ipc;
 using Dorado.Containers;
+using Dorado.Containers.Drm;
 using Dorado.Platform.Desktop.Software;
 using Dorado.Runtime;
 
@@ -59,11 +60,12 @@ internal static class Program
     {
         if (args.Length < 2)
         {
-            Console.Error.WriteLine("usage: dorado inspect <package>");
+            Console.Error.WriteLine("usage: dorado inspect <package> [--key-file <keys.json>]");
             return 1;
         }
 
-        ZunePackage package = ZunePackageReader.Read(args[1]);
+        IDrmKeyProvider? drm = LoadKeyProvider(args);
+        ZunePackage package = ZunePackageReader.Read(args[1], drm);
 
         Console.WriteLine($"kind           {package.Kind}");
         Console.WriteLine($"title          {Value(package.Metadata.Title)}");
@@ -75,6 +77,12 @@ internal static class Program
         Console.WriteLine($"ccgameVersion  {Value(package.Metadata.CcgameVersion)}");
         Console.WriteLine($"encrypted      {package.IsEncrypted}");
         Console.WriteLine($"entries        {package.EntryCount} extracted / {package.Files.Count} declared");
+
+        if (package.Volume is { } volume)
+        {
+            Console.WriteLine($"volume         version={volume.Version} blocks={volume.TotalBlockCount} free={volume.FreeBlockCount} " +
+                              $"blockBase=0x{volume.BlockBase:X} hashOffset=0x{volume.DataOffset:X}");
+        }
 
         if (!string.IsNullOrWhiteSpace(package.Metadata.Description))
         {
@@ -99,18 +107,19 @@ internal static class Program
     {
         if (args.Length < 3)
         {
-            Console.Error.WriteLine("usage: dorado unpack <package> <outputDir>");
+            Console.Error.WriteLine("usage: dorado unpack <package> <outputDir> [--key-file <keys.json>]");
             return 1;
         }
 
         string outputDir = args[2];
-        ZunePackage package = ZunePackageReader.Read(args[1]);
+        IDrmKeyProvider? drm = LoadKeyProvider(args);
+        ZunePackage package = ZunePackageReader.Read(args[1], drm);
 
         if (package.IsEncrypted || package.EntryCount == 0)
         {
             Console.Error.WriteLine(
                 package.IsEncrypted
-                    ? "package payload is DRM-encrypted; no key provider supplied (see docs/drm-key-import.md)."
+                    ? "package payload is DRM-encrypted; supply a key with --key-file (see docs/drm-key-import.md)."
                     : "package contains no extractable entries.");
             return 3;
         }
@@ -209,10 +218,13 @@ internal static class Program
                 case "--hash":
                     hash = true;
                     break;
+                case "--key-file" when i + 1 < args.Length:
+                    i++;
+                    break;
             }
         }
 
-        ZunePackage package = ZunePackageReader.Read(args[1]);
+        ZunePackage package = ZunePackageReader.Read(args[1], LoadKeyProvider(args));
         var backend = new SoftwareGraphicsBackend();
 
         ZuneRunResult result = ZuneAppRunner.Run(package, new ZuneRunOptions
@@ -273,6 +285,10 @@ internal static class Program
               dorado refs    <assembly>           list assembly/member references
               dorado run     <package>            run a package (M1)
 
+            options:
+              --key-file <keys.json>   supply AES content keys for owned content
+                                       ({ "keys": [ { "guid": "<hex>", "key": "<hex>" } ] })
+
             packages: .ccgame (XNA cabinet) and .zcp (NX container)
             """);
         return 0;
@@ -280,6 +296,20 @@ internal static class Program
 
     private static string Value(string? value) =>
         string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    /// <summary>Builds a key provider from an optional <c>--key-file</c> argument.</summary>
+    private static IDrmKeyProvider? LoadKeyProvider(string[] args)
+    {
+        for (int i = 0; i < args.Length - 1; i++)
+        {
+            if (args[i] == "--key-file")
+            {
+                return JsonDrmKeyProvider.FromFile(args[i + 1]);
+            }
+        }
+
+        return null;
+    }
 
     private static string Trim(string value) =>
         value.Length <= 72 ? value : value[..69] + "...";

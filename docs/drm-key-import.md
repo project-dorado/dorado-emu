@@ -1,21 +1,20 @@
-# DRM key import (M4 — user-supplied key path)
+# DRM key import (user-supplied content keys)
 
-Marketplace `.zcp` payloads are AES-ECB encrypted with a content key that is not
-public. Dorado does **not** ship, derive, or break keys. It provides a seam —
-`IDrmKeyProvider` — so a user may supply keys for content they lawfully own,
-typically extracted from their own device. The **seam ships in M0**
-(`src/Dorado.Containers/Drm/IDrmKeyProvider.cs`, with a `NullDrmKeyProvider`
-default wired into `ZcpReader`); M4 is the *key-file importer* on top of it.
+Marketplace `.zcp` volumes are AES-ECB encrypted with a per-package content
+key. Dorado does **not** ship, derive, or break keys; it provides the
+`IDrmKeyProvider` seam plus a JSON sidecar loader so a user may supply the
+unwrapped key for content they lawfully own. See
+[`zcp-decryption.md`](zcp-decryption.md) for the full mechanism.
 
-## Threat-model / scope
+## Scope
 
 - Dorado is an offline emulator. It never contacts Microsoft services.
-- Homebrew `.ccgame` and any unencrypted `.zcp` need no key.
+- Homebrew `.ccgame` and plaintext `.zcp` volumes need no key.
 - Encrypted marketplace packages remain unreadable until a key is supplied.
 - Key material is read from a user-chosen file at runtime and is never logged,
   bundled, committed, or transmitted.
 
-## Provider contract (implemented seam)
+## Provider contract
 
 ```csharp
 public interface IDrmKeyProvider
@@ -25,14 +24,40 @@ public interface IDrmKeyProvider
 }
 ```
 
-## Key file format (planned)
+`packageGuid` is the 32-character lower-case hex GUID from the `EXEC` record.
+`containerHeader` exposes the first `0x1F0` bytes for implementations that need
+to derive or select a key.
 
-A simple JSON or raw-bytes sidecar referenced from the `dorado-hd` UI:
+## Key file format
 
 ```json
-{ "keys": [ { "guid": "5dc1e614ed1b4d108259bc7e3e926a86", "key": "<hex>" } ] }
+{
+  "keys": [
+    { "guid": "b0219e77eee74d9baf5b7934c594fc65", "key": "<hex AES key>" },
+    { "key": "<hex AES key used when the GUID is absent or unknown>" }
+  ]
+}
 ```
 
-Extraction from a physical, user-owned Zune HD is out of scope for this
-repository; community tooling (e.g. Project Lyra / zuneslayer) exists and is
-documented separately. Do not redistribute extracted keys.
+Use it from the CLI:
+
+```bash
+dorado unpack "Alarm Clock.zcp" out/ --key-file keys.json
+dorado inspect "Alarm Clock.zcp" --key-file keys.json
+```
+
+`JsonDrmKeyProvider` accepts 16-, 24-, and 32-byte hex keys and matches GUIDs
+case-insensitively, with optional braces and dashes.
+
+## Verification
+
+Each ZCSTFS hash entry is the SHA-1 of its data block, and the volume
+descriptor stores the SHA-1 of the top hash block, so a wrong key fails
+immediately with an `InvalidDataException` rather than producing corrupt files.
+
+## Extraction from a device (out of scope)
+
+Extraction from a physical, user-owned Zune HD is not implemented here.
+Community tooling (`CUB3D/zuneslayer`, Project Lyra) can read the provisioned
+keypack or the decrypted `\gametitle` mount on firmware v4.5. Do not
+redistribute extracted keys or Microsoft content.

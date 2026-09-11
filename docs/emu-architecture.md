@@ -4,8 +4,10 @@
 
 1. **`Dorado.Containers`** — pure parsing. `.ccgame` (MSCF/MSZIP cabinet with an
    `XCabInfo.resources` manifest) and `.zcp` (NX container with an
-   `EXEC`/`TITL` manifest and an optionally-encrypted payload). Produces a
-   `ZunePackage` with metadata and file entries. No platform dependencies.
+   `EXEC`/`RTVR`/`TITL` manifest and a ZCSTFS volume). The ZCSTFS reader walks
+   the hash/chain table and directory tree, decrypts the data area when a key
+   is supplied, and produces a `ZunePackage` with metadata and file entries.
+   No platform dependencies.
 
 2. **`Dorado.Runtime`** — loads the managed application. A custom
    `AssemblyLoadContext` remaps .NET Compact Framework 3.5 assembly identities

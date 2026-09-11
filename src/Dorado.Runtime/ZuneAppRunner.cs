@@ -59,7 +59,7 @@ public static class ZuneAppRunner
             };
 
             var context = new ZuneLoadContext(directory, overrides);
-            Assembly assembly = context.LoadFromAssemblyPath(Path.Combine(directory, ResolveStartupAssembly(package)));
+            Assembly assembly = context.LoadAppAssembly(Path.Combine(directory, ResolveStartupAssembly(package)));
 
             string entryPoint = InvokeEntryPoint(assembly, package);
 

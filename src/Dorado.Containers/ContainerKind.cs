@@ -8,4 +8,7 @@ public enum ContainerKind
 
     /// <summary>A marketplace NX container (<c>.zcp</c>), payload usually DRM-encrypted.</summary>
     Zcp,
+
+    /// <summary>An extracted application tree (for example a device <c>\gametitle</c> dump).</summary>
+    Directory,
 }

@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
 using System.Text;
+using Dorado.Containers;
 
 namespace Dorado.Tests;
 
@@ -188,5 +189,153 @@ internal static class SyntheticPackages
         offset += 4;
         payload.CopyTo(data, offset);
         return offset + payload.Length;
+    }
+
+    // ---- .zcp (ZCSTFS volume) -------------------------------------------
+
+    /// <summary>Layout shared by the synthetic volume builder and its tests.</summary>
+    internal static class Zcstfs
+    {
+        public const int DataOffset = 0x1000;
+        public const int TotalBlocks = 4;
+        public const int BlockBase = DataOffset + (2 * ZcstfsReader.BlockSize);
+
+        public const string FirstPath = "Content/a.xnb";
+        public const int FirstLength = 0x5000;
+        public const string SecondPath = "b.exe";
+        public const int SecondLength = 0x40;
+    }
+
+    /// <summary>
+    /// Builds a minimal but valid ZCSTFS volume in an NX container. The volume
+    /// has a root directory plus one subdirectory, a two-block file
+    /// (<c>Content/a.xnb</c>) and a single-block file (<c>b.exe</c>). When
+    /// <paramref name="encrypt"/> is set the data area is AES-256-ECB encrypted
+    /// with <paramref name="key"/>.
+    /// </summary>
+    public static byte[] BuildZcstfs(bool encrypt = false, byte[]? key = null)
+    {
+        int size = Zcstfs.BlockBase + (Zcstfs.TotalBlocks * ZcstfsReader.BlockSize);
+        var data = new byte[size];
+
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0 * 4), encrypt ? 2u : 1u);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(1 * 4), 1u);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(2 * 4), 2u);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(4 * 4), 0x1F0u);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(6 * 4), 0x2800u);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(7 * 4), 0x1DE0u);
+        data[0x32] = (byte)'N';
+        data[0x33] = (byte)'X';
+
+        if (encrypt)
+        {
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x44), 2u);
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x48), 1u);
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0x4C), 0x100u);
+        }
+
+        // Volume descriptor at 0xB4.
+        const int vd = 0xB4;
+        data[vd] = 0x24;
+        BinaryPrimitives.WriteUInt16LittleEndian(data.AsSpan(vd + 3), 1); // file table block count
+        // file table block number (0) at vd + 5
+        // top hash (20 bytes) at vd + 8 (left zero: only used as an oracle)
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(vd + 0x1C), Zcstfs.TotalBlocks);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(vd + 0x20), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0xD8), Zcstfs.DataOffset);
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(0xE0), 0x80000000);
+
+        // Data blocks.
+        byte[] first = BuildPattern(Zcstfs.FirstLength, 0x11);
+        byte[] second = BuildPattern(Zcstfs.SecondLength, 0x77);
+        int firstBlock0 = Zcstfs.BlockBase + (1 * ZcstfsReader.BlockSize);
+        int firstBlock1 = Zcstfs.BlockBase + (2 * ZcstfsReader.BlockSize);
+        int secondBlock = Zcstfs.BlockBase + (3 * ZcstfsReader.BlockSize);
+        first.AsSpan(0, ZcstfsReader.BlockSize).CopyTo(data.AsSpan(firstBlock0));
+        first.AsSpan(ZcstfsReader.BlockSize).CopyTo(data.AsSpan(firstBlock1));
+        second.CopyTo(data.AsSpan(secondBlock));
+
+        // Directory block 0.
+        int directory = Zcstfs.BlockBase;
+        WriteDirectoryEntry(data.AsSpan(directory), "Content", isDirectory: true, startBlock: 0, parent: 0xFFFF, length: 0);
+        WriteDirectoryEntry(
+            data.AsSpan(directory + ZcstfsReader.DirectoryEntrySize),
+            "a.xnb",
+            isDirectory: false,
+            startBlock: 1,
+            parent: 0,
+            length: Zcstfs.FirstLength,
+            blocks: 2);
+        WriteDirectoryEntry(
+            data.AsSpan(directory + (2 * ZcstfsReader.DirectoryEntrySize)),
+            "b.exe",
+            isDirectory: false,
+            startBlock: 3,
+            parent: 0xFFFF,
+            length: Zcstfs.SecondLength,
+            blocks: 1);
+
+        // Hash/chain entries.
+        int[] chain = [ZcstfsReader.EndOfChain, 2, ZcstfsReader.EndOfChain, ZcstfsReader.EndOfChain];
+        for (int i = 0; i < Zcstfs.TotalBlocks; i++)
+        {
+            int entry = Zcstfs.DataOffset + (i * ZcstfsReader.HashEntrySize);
+            byte[] block = data.AsSpan(Zcstfs.BlockBase + (i * ZcstfsReader.BlockSize), ZcstfsReader.BlockSize).ToArray();
+            System.Security.Cryptography.SHA1.HashData(block, data.AsSpan(entry, 20));
+            uint info = 0xC0000000u | (uint)chain[i];
+            BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(entry + 20), info);
+        }
+
+        if (encrypt)
+        {
+            key ??= new byte[32];
+            int encryptedLength = Zcstfs.BlockBase + (Zcstfs.TotalBlocks * ZcstfsReader.BlockSize) - Zcstfs.DataOffset;
+            EncryptEcb(data, Zcstfs.DataOffset, encryptedLength, key);
+        }
+
+        return data;
+    }
+
+    private static void WriteDirectoryEntry(
+        Span<byte> entry,
+        string name,
+        bool isDirectory,
+        int startBlock,
+        int parent,
+        uint length,
+        int blocks = 0)
+    {
+        entry[..ZcstfsReader.DirectoryEntrySize].Clear();
+        Encoding.ASCII.GetBytes(name, entry);
+        entry[40] = (byte)(name.Length | (isDirectory ? 0x80 : 0));
+        entry[41] = (byte)blocks;
+        entry[44] = (byte)blocks;
+        entry[47] = (byte)startBlock;
+        entry[48] = (byte)(startBlock >> 8);
+        entry[49] = (byte)(startBlock >> 16);
+        BinaryPrimitives.WriteUInt16LittleEndian(entry[50..], (ushort)parent);
+        BinaryPrimitives.WriteUInt32LittleEndian(entry[52..], length);
+    }
+
+    private static byte[] BuildPattern(int length, byte seed)
+    {
+        var payload = new byte[length];
+        for (int i = 0; i < length; i++)
+        {
+            payload[i] = (byte)(seed + (i % 251));
+        }
+
+        return payload;
+    }
+
+    /// <summary>AES-ECB encryption (no padding) used to build encrypted fixtures.</summary>
+    public static void EncryptEcb(byte[] buffer, int offset, int length, byte[] key)
+    {
+        using var aes = System.Security.Cryptography.Aes.Create();
+        aes.Mode = System.Security.Cryptography.CipherMode.ECB;
+        aes.Padding = System.Security.Cryptography.PaddingMode.None;
+        aes.Key = key;
+        using var encryptor = aes.CreateEncryptor();
+        _ = encryptor.TransformBlock(buffer, offset, length, buffer, offset);
     }
 }

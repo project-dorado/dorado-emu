@@ -10,13 +10,16 @@ namespace Dorado.Containers;
 public sealed class ZunePackage
 {
     private readonly Dictionary<string, byte[]> _entries;
+    private readonly Func<string, byte[]?>? _entryReader;
 
     internal ZunePackage(
         ContainerKind kind,
         PackageMetadata metadata,
         IEnumerable<PackageFile> files,
         IEnumerable<KeyValuePair<string, byte[]>>? entries = null,
-        bool isEncrypted = false)
+        bool isEncrypted = false,
+        Func<string, byte[]?>? entryReader = null,
+        ZcstfsVolume? volume = null)
     {
         Kind = kind;
         Metadata = metadata;
@@ -30,7 +33,9 @@ public sealed class ZunePackage
             }
         }
 
+        _entryReader = entryReader;
         IsEncrypted = isEncrypted;
+        Volume = volume;
     }
 
     /// <summary>Container type.</summary>
@@ -45,8 +50,14 @@ public sealed class ZunePackage
     /// <summary>True when the payload is DRM-encrypted and therefore not readable.</summary>
     public bool IsEncrypted { get; }
 
-    /// <summary>Number of payload files whose bytes were successfully extracted.</summary>
-    public int EntryCount => _entries.Count;
+    /// <summary>The parsed ZCSTFS volume for <c>.zcp</c> packages, when present.</summary>
+    public ZcstfsVolume? Volume { get; }
+
+    /// <summary>True when payload bytes can be produced for the declared files.</summary>
+    public bool CanReadEntries => !IsEncrypted && (_entryReader is not null || _entries.Count > 0);
+
+    /// <summary>Number of payload files whose bytes are available (or readable on demand).</summary>
+    public int EntryCount => _entryReader is not null ? Files.Count : _entries.Count;
 
     /// <summary>Gets a payload file by logical path.</summary>
     public bool TryGetEntry(string path, [NotNullWhen(true)] out byte[]? data)
@@ -57,13 +68,24 @@ public sealed class ZunePackage
             return true;
         }
 
+        if (_entryReader is not null)
+        {
+            value = _entryReader(path);
+            if (value is not null)
+            {
+                _entries[path] = value;
+                data = value;
+                return true;
+            }
+        }
+
         data = null;
         return false;
     }
 
     /// <summary>Gets a payload file by logical path or throws.</summary>
     public byte[] GetEntry(string path) =>
-        _entries.TryGetValue(path, out var value)
+        TryGetEntry(path, out byte[]? value)
             ? value
             : throw new KeyNotFoundException($"Package has no entry '{path}'.");
 }
