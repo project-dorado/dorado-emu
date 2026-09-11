@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Microsoft.Xna.Framework.Audio;
 
 /// <summary>A decoded PCM sound effect. Playback is a no-op until the audio backend lands (M2).</summary>
@@ -16,6 +18,14 @@ public sealed class SoundEffect : IDisposable
         }
     }
 
+    public static float MasterVolume { get; set; } = 1f;
+
+    public static float DistanceScale { get; set; } = 1f;
+
+    public static float DopplerScale { get; set; } = 1f;
+
+    public static float SpeedOfSound { get; set; } = 343.5f;
+
     public byte[] Pcm { get; }
 
     public TimeSpan Duration { get; }
@@ -28,7 +38,7 @@ public sealed class SoundEffect : IDisposable
 
     public int SampleRate { get; }
 
-    public string? Name { get; set; }
+    public string Name { get; set; } = string.Empty;
 
     public bool IsDisposed { get; private set; }
 
@@ -59,6 +69,8 @@ public sealed class SoundEffectInstance : IDisposable
 
     public SoundEffect Effect { get; }
 
+    public bool IsDisposed { get; private set; }
+
     public bool IsLooped { get; set; }
 
     public float Volume { get; set; } = 1f;
@@ -71,18 +83,39 @@ public sealed class SoundEffectInstance : IDisposable
 
     public void Play()
     {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
         State = SoundState.Playing;
     }
 
-    public void Pause() => State = SoundState.Paused;
+    public void Stop() => Stop(immediate: true);
 
-    public void Resume() => State = SoundState.Playing;
+    public void Stop(bool immediate)
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        State = SoundState.Stopped;
+    }
 
-    public void Stop() => State = SoundState.Stopped;
+    public void Pause()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        State = SoundState.Paused;
+    }
 
-    public void Dispose()
+    public void Resume()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        State = SoundState.Playing;
+    }
+
+    public void Apply3D(AudioListener listener, AudioEmitter emitter)
     {
     }
+
+    public void Apply3D(AudioListener[] listeners, AudioEmitter emitter)
+    {
+    }
+
+    public void Dispose() => IsDisposed = true;
 }
 
 public enum SoundState
@@ -90,4 +123,87 @@ public enum SoundState
     Playing = 0,
     Paused = 1,
     Stopped = 2,
+}
+
+/// <summary>A 3-D audio emitter used by <see cref="SoundEffectInstance.Apply3D(AudioListener, AudioEmitter)"/>.</summary>
+public class AudioEmitter
+{
+    public AudioEmitter()
+    {
+        Position = Vector3.Zero;
+        Velocity = Vector3.Zero;
+        Forward = Vector3.Forward;
+        Up = Vector3.Up;
+        DopplerScale = 1f;
+    }
+
+    public Vector3 Position { get; set; }
+
+    public Vector3 Velocity { get; set; }
+
+    public Vector3 Forward { get; set; }
+
+    public Vector3 Up { get; set; }
+
+    public float DopplerScale { get; set; }
+}
+
+/// <summary>A 3-D audio listener used by <see cref="SoundEffectInstance.Apply3D(AudioListener, AudioEmitter)"/>.</summary>
+public class AudioListener
+{
+    public AudioListener()
+    {
+        Position = Vector3.Zero;
+        Velocity = Vector3.Zero;
+        Forward = Vector3.Forward;
+        Up = Vector3.Up;
+    }
+
+    public Vector3 Position { get; set; }
+
+    public Vector3 Velocity { get; set; }
+
+    public Vector3 Forward { get; set; }
+
+    public Vector3 Up { get; set; }
+}
+
+/// <summary>Raised when too many instances of a sound are playing.</summary>
+[Serializable]
+public sealed class InstancePlayLimitException : ExternalException
+{
+    public InstancePlayLimitException()
+        : base("Too many sound instances are playing.")
+    {
+    }
+
+    public InstancePlayLimitException(string message)
+        : base(message)
+    {
+    }
+
+    public InstancePlayLimitException(string message, Exception inner)
+        : base(message, inner)
+    {
+    }
+}
+
+/// <summary>Raised when no usable audio device exists.</summary>
+[Serializable]
+public sealed class NoAudioHardwareException : ExternalException
+{
+    public NoAudioHardwareException()
+        : base("No audio hardware is available.")
+    {
+    }
+
+    public NoAudioHardwareException(string message)
+        : base(message)
+    {
+    }
+
+    public NoAudioHardwareException(string message, Exception inner)
+        : base(message, inner)
+    {
+    }
 }

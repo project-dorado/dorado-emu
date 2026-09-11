@@ -32,6 +32,16 @@ public static class PlatformHost
     /// <summary>Invoked after each presented frame with the zero-based frame index.</summary>
     public static Action<int>? OnFrameRendered { get; set; }
 
+    /// <summary>Display title of the running package; scopes its save-game directory.</summary>
+    public static string GameTitle { get; set; } = "Dorado";
+
+    /// <summary>Root of the running package's extracted tree (its install directory).</summary>
+    public static string AppDirectory { get; set; } = Directory.GetCurrentDirectory();
+
+    /// <summary>Root directory that backs <c>StorageDevice</c> containers.</summary>
+    public static string StorageRoot { get; set; } =
+        Path.Combine(Path.GetTempPath(), "dorado", "saves");
+
     public static long FrameCount { get; private set; }
 
     public static bool ExitRequested => _exitRequested;

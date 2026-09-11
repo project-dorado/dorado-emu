@@ -1,3 +1,4 @@
+using System.Text;
 using Dorado.Platform;
 
 namespace Microsoft.Xna.Framework.Graphics;
@@ -11,6 +12,8 @@ public class SpriteBatch : IDisposable
     {
         _graphicsDevice = graphicsDevice ?? throw new ArgumentNullException(nameof(graphicsDevice));
     }
+
+    public GraphicsDevice GraphicsDevice => _graphicsDevice;
 
     public void Begin()
     {
@@ -112,6 +115,104 @@ public class SpriteBatch : IDisposable
         SpriteEffects effects,
         float layerDepth) =>
         Draw(texture, position, sourceRectangle, color, rotation, origin, new Vector2(scale, scale), effects, layerDepth);
+
+    public void DrawString(SpriteFont spriteFont, string text, Vector2 position, Color color) =>
+        DrawString(spriteFont, text, position, color, 0f, Vector2.Zero, 1f, SpriteEffects.None, 0f);
+
+    public void DrawString(
+        SpriteFont spriteFont,
+        string text,
+        Vector2 position,
+        Color color,
+        float rotation,
+        Vector2 origin,
+        float scale,
+        SpriteEffects effects,
+        float layerDepth) =>
+        DrawString(spriteFont, text, position, color, rotation, origin, new Vector2(scale, scale), effects, layerDepth);
+
+    public void DrawString(
+        SpriteFont spriteFont,
+        string text,
+        Vector2 position,
+        Color color,
+        float rotation,
+        Vector2 origin,
+        Vector2 scale,
+        SpriteEffects effects,
+        float layerDepth)
+    {
+        ArgumentNullException.ThrowIfNull(spriteFont);
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        float x = 0f;
+        float y = 0f;
+        foreach (char character in text)
+        {
+            if (character == '\n')
+            {
+                x = 0f;
+                y += spriteFont.LineSpacing;
+                continue;
+            }
+
+            if (character == '\r')
+            {
+                continue;
+            }
+
+            int index = spriteFont.FindGlyph(character);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            Rectangle glyph = spriteFont.Glyphs[index];
+            Vector3 kerning = spriteFont.Kerning[index];
+            var offset = new Vector2(x + kerning.X, y + kerning.Y);
+            Draw(
+                spriteFont.Texture,
+                position + offset,
+                glyph,
+                color,
+                rotation,
+                origin,
+                scale,
+                effects,
+                layerDepth);
+            x += kerning.Z + spriteFont.Spacing;
+        }
+    }
+
+    public void DrawString(SpriteFont spriteFont, StringBuilder text, Vector2 position, Color color) =>
+        DrawString(spriteFont, text?.ToString() ?? string.Empty, position, color);
+
+    public void DrawString(
+        SpriteFont spriteFont,
+        StringBuilder text,
+        Vector2 position,
+        Color color,
+        float rotation,
+        Vector2 origin,
+        float scale,
+        SpriteEffects effects,
+        float layerDepth) =>
+        DrawString(spriteFont, text?.ToString() ?? string.Empty, position, color, rotation, origin, scale, effects, layerDepth);
+
+    public void DrawString(
+        SpriteFont spriteFont,
+        StringBuilder text,
+        Vector2 position,
+        Color color,
+        float rotation,
+        Vector2 origin,
+        Vector2 scale,
+        SpriteEffects effects,
+        float layerDepth) =>
+        DrawString(spriteFont, text?.ToString() ?? string.Empty, position, color, rotation, origin, scale, effects, layerDepth);
 
     public void Dispose()
     {

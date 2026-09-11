@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text;
 using Dorado.Containers;
 using Dorado.Platform;
 using Microsoft.Xna.Framework;
@@ -14,6 +15,9 @@ public sealed class ZuneRunOptions
     public int FrameLimit { get; init; } = 60;
 
     public bool RunForever { get; init; }
+
+    /// <summary>Overrides the save-game scope; defaults to the package title.</summary>
+    public string? GameTitle { get; init; }
 
     /// <summary>Invoked after each presented frame.</summary>
     public Action<int>? OnFrameRendered { get; init; }
@@ -50,7 +54,7 @@ public static class ZuneAppRunner
         try
         {
             Directory.SetCurrentDirectory(directory);
-            ConfigureHost(options, directory);
+            ConfigureHost(options, directory, package.Metadata.Title);
 
             var overrides = new Dictionary<string, Assembly>(StringComparer.OrdinalIgnoreCase)
             {
@@ -80,7 +84,7 @@ public static class ZuneAppRunner
         }
     }
 
-    private static void ConfigureHost(ZuneRunOptions options, string directory)
+    private static void ConfigureHost(ZuneRunOptions options, string directory, string? packageTitle)
     {
         PlatformHost.Graphics = options.Graphics;
         PlatformHost.Input = options.Input;
@@ -89,6 +93,9 @@ public static class ZuneAppRunner
         PlatformHost.FixedTimeStep = true;
         PlatformHost.FrameTime = TimeSpan.FromSeconds(1.0 / 60.0);
         PlatformHost.OnFrameRendered = options.OnFrameRendered;
+        string title = options.GameTitle ?? packageTitle ?? string.Empty;
+        PlatformHost.GameTitle = string.IsNullOrWhiteSpace(title) ? "Dorado" : title;
+        PlatformHost.AppDirectory = directory;
         PlatformHost.ResetExit();
     }
 
@@ -125,7 +132,8 @@ public static class ZuneAppRunner
             }
             catch (TargetInvocationException ex) when (ex.InnerException is not null)
             {
-                throw new ZuneAppException($"Application entry point threw: {ex.InnerException.Message}", ex.InnerException);
+                throw new ZuneAppException(
+                    $"Application entry point threw: {Describe(ex.InnerException)}", ex.InnerException);
             }
 
             return $"{assembly.GetName().Name}::{entry.Name}";
@@ -147,6 +155,23 @@ public static class ZuneAppRunner
 
         game.Run();
         return gameType.FullName!;
+    }
+
+    /// <summary>Flattens a nested exception chain into a single diagnostic line.</summary>
+    private static string Describe(Exception exception)
+    {
+        var builder = new StringBuilder();
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (builder.Length > 0)
+            {
+                builder.Append(" -> ");
+            }
+
+            builder.Append(current.GetType().Name).Append(": ").Append(current.Message);
+        }
+
+        return builder.ToString();
     }
 
     private static string ExtractToTempDirectory(ZunePackage package)

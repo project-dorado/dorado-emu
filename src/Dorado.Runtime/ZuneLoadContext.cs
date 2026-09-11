@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Runtime.Loader;
 
 namespace Dorado.Runtime;
@@ -82,7 +83,45 @@ internal sealed class ZuneLoadContext : AssemblyLoadContext
         return LoadFromStream(stream);
     }
 
-    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName) => IntPtr.Zero;
+    /// <summary>
+    /// Resolves the native <c>ZDK</c>/<c>MEDIA</c> libraries the Zune XNA
+    /// extension P/Invokes. Dorado ships a compatibility library built from
+    /// <c>native/zdk-bridge/</c>; when it is absent the P/Invoke fails normally.
+    /// </summary>
+    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+    {
+        if (!unmanagedDllName.Equals("ZDK", StringComparison.OrdinalIgnoreCase) &&
+            !unmanagedDllName.Equals("MEDIA", StringComparison.OrdinalIgnoreCase))
+        {
+            return IntPtr.Zero;
+        }
+
+        foreach (string candidate in ZdkLibraryCandidates())
+        {
+            if (File.Exists(candidate) && NativeLibrary.TryLoad(candidate, out IntPtr handle))
+            {
+                return handle;
+            }
+        }
+
+        return IntPtr.Zero;
+    }
+
+    private IEnumerable<string> ZdkLibraryCandidates()
+    {
+        string? configured = Environment.GetEnvironmentVariable("DORADO_ZDK_LIB");
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            yield return configured;
+        }
+
+        foreach (string directory in new[] { AppContext.BaseDirectory, _directory })
+        {
+            yield return Path.Combine(directory, "libZDK.so");
+            yield return Path.Combine(directory, "libZDK.dylib");
+            yield return Path.Combine(directory, "ZDK.dll");
+        }
+    }
 
     /// <summary>Minimal PE COR20 header writer used to relax the 32BITREQ flag.</summary>
     private static class CorFlags

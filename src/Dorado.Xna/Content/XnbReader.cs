@@ -43,8 +43,96 @@ internal static class XnbReader
         {
             "Microsoft.Xna.Framework.Content.Texture2DReader" => ReadTexture2D(data, ref pos),
             "Microsoft.Xna.Framework.Content.SoundEffectReader" => ReadSoundEffect(data, ref pos),
+            "Microsoft.Xna.Framework.Content.SpriteFontReader" => ReadSpriteFont(data, ref pos),
             _ => throw new NotSupportedException($"Unsupported XNB content reader '{primaryReader}'."),
         };
+    }
+
+    private static SpriteFont ReadSpriteFont(byte[] data, ref int pos)
+    {
+        _ = Read7Bit(data, ref pos); // Texture2D type-reader index
+        Texture2D texture = ReadTexture2D(data, ref pos);
+
+        _ = Read7Bit(data, ref pos); // List<Rectangle> type-reader index
+        int glyphCount = ReadInt32(data, ref pos);
+        var glyphs = new Rectangle[glyphCount];
+        for (int i = 0; i < glyphCount; i++)
+        {
+            glyphs[i] = ReadRectangle(data, ref pos);
+        }
+
+        _ = Read7Bit(data, ref pos); // List<Rectangle> type-reader index
+        int cropCount = ReadInt32(data, ref pos);
+        var cropping = new Rectangle[cropCount];
+        for (int i = 0; i < cropCount; i++)
+        {
+            cropping[i] = ReadRectangle(data, ref pos);
+        }
+
+        _ = Read7Bit(data, ref pos); // List<char> type-reader index
+        int charCount = ReadInt32(data, ref pos);
+        var characters = new char[charCount];
+        for (int i = 0; i < charCount; i++)
+        {
+            characters[i] = ReadChar(data, ref pos);
+        }
+
+        int lineSpacing = ReadInt32(data, ref pos);
+        float spacing = ReadSingle(data, ref pos);
+
+        _ = Read7Bit(data, ref pos); // List<Vector3> type-reader index
+        int kerningCount = ReadInt32(data, ref pos);
+        var kerning = new Vector3[kerningCount];
+        for (int i = 0; i < kerningCount; i++)
+        {
+            kerning[i] = new Vector3(ReadSingle(data, ref pos), ReadSingle(data, ref pos), ReadSingle(data, ref pos));
+        }
+
+        char? defaultCharacter = null;
+        if (ReadBoolean(data, ref pos))
+        {
+            defaultCharacter = ReadChar(data, ref pos);
+        }
+
+        return new SpriteFont(texture, glyphs, cropping, characters, lineSpacing, spacing, kerning, defaultCharacter);
+    }
+
+    private static Rectangle ReadRectangle(byte[] data, ref int pos) =>
+        new(ReadInt32(data, ref pos), ReadInt32(data, ref pos), ReadInt32(data, ref pos), ReadInt32(data, ref pos));
+
+    private static float ReadSingle(byte[] data, ref int pos)
+    {
+        float value = BitConverter.ToSingle(data, pos);
+        pos += 4;
+        return value;
+    }
+
+    private static bool ReadBoolean(byte[] data, ref int pos) => data[pos++] != 0;
+
+    /// <summary>Reads a UTF-8 encoded scalar; XNB <c>char</c> values are variable length.</summary>
+    private static char ReadChar(byte[] data, ref int pos)
+    {
+        byte first = data[pos++];
+        if (first < 0x80)
+        {
+            return (char)first;
+        }
+
+        if ((first & 0xE0) == 0xC0)
+        {
+            byte second = data[pos++];
+            return (char)(((first & 0x1F) << 6) | (second & 0x3F));
+        }
+
+        if ((first & 0xF0) == 0xE0)
+        {
+            byte second = data[pos++];
+            byte third = data[pos++];
+            return (char)(((first & 0x0F) << 12) | ((second & 0x3F) << 6) | (third & 0x3F));
+        }
+
+        pos += 3;
+        return '?';
     }
 
     private static Texture2D ReadTexture2D(byte[] data, ref int pos)

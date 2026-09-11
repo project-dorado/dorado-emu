@@ -1,6 +1,120 @@
+using System.Collections.ObjectModel;
 using Dorado.Platform;
 
 namespace Microsoft.Xna.Framework.Graphics;
+
+/// <summary>A device type; Dorado always runs on a hardware-equivalent backend.</summary>
+public enum DeviceType
+{
+    Default = 0,
+    Hardware = 1,
+    Reference = 2,
+    Null = 3,
+}
+
+/// <summary>Depth/stencil buffer formats.</summary>
+public enum DepthFormat
+{
+    None = 0,
+    Depth16 = 1,
+    Depth24 = 2,
+    Depth24Stencil8 = 3,
+}
+
+/// <summary>Shader model requirements; the software backend accepts any profile.</summary>
+public enum ShaderProfile
+{
+    ShaderModel1_1 = 1,
+    ShaderModel2_0 = 2,
+    ShaderModel3_0 = 3,
+}
+
+/// <summary>Swap-chain presentation interval.</summary>
+public enum PresentInterval
+{
+    Default = 0,
+    Immediate = 1,
+    One = 2,
+    Two = 3,
+    Three = 4,
+    Four = 5,
+}
+
+/// <summary>A display mode supported by an adapter.</summary>
+public class DisplayMode
+{
+    public DisplayMode(int width, int height, SurfaceFormat format)
+    {
+        Width = width;
+        Height = height;
+        Format = format;
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+
+    public SurfaceFormat Format { get; }
+
+    public float AspectRatio => Height == 0 ? 0f : (float)Width / Height;
+}
+
+/// <summary>A graphics adapter; Dorado exposes a single synthetic adapter.</summary>
+public class GraphicsAdapter
+{
+    private static readonly GraphicsAdapter Default = new();
+
+    public static GraphicsAdapter DefaultAdapter => Default;
+
+    public static ReadOnlyCollection<GraphicsAdapter> Adapters { get; } =
+        new(new[] { Default });
+
+    public virtual DisplayMode CurrentDisplayMode => new(480, 272, SurfaceFormat.Color);
+
+    public virtual bool IsWideScreen => true;
+
+    public virtual string Description => "Dorado Software Adapter";
+
+    public virtual string DeviceName => "Dorado";
+}
+
+/// <summary>Swap-chain and presentation settings.</summary>
+public class PresentationParameters
+{
+    public int BackBufferWidth { get; set; } = 480;
+
+    public int BackBufferHeight { get; set; } = 272;
+
+    public SurfaceFormat BackBufferFormat { get; set; } = SurfaceFormat.Color;
+
+    public int BackBufferCount { get; set; } = 1;
+
+    public DepthFormat DepthStencilFormat { get; set; } = DepthFormat.Depth24;
+
+    public bool EnableAutoDepthStencil { get; set; }
+
+    public bool IsFullScreen { get; set; }
+
+    public IntPtr DeviceWindowHandle { get; set; }
+
+    public int MultiSampleCount { get; set; }
+
+    public PresentInterval PresentationInterval { get; set; } = PresentInterval.Default;
+}
+
+/// <summary>Exposes the device a game is rendered with.</summary>
+public interface IGraphicsDeviceService
+{
+    GraphicsDevice GraphicsDevice { get; }
+
+    event EventHandler? DeviceCreated;
+
+    event EventHandler? DeviceDisposing;
+
+    event EventHandler? DeviceResetting;
+
+    event EventHandler? DeviceReset;
+}
 
 /// <summary>Pixel formats; numeric values follow XNA 3.1.</summary>
 public enum SurfaceFormat
@@ -58,12 +172,61 @@ public enum SpriteEffects
     FlipVertically = 2,
 }
 
-/// <summary>A GPU texture.</summary>
-public class Texture2D : IDisposable
+/// <summary>Base class for resources that belong to a graphics device.</summary>
+public class GraphicsResource : IDisposable
 {
+    public GraphicsDevice? GraphicsDevice { get; internal set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public object? Tag { get; set; }
+
+    public bool IsDisposed { get; protected set; }
+
+    public event EventHandler? Disposing;
+
+    public void Dispose()
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        IsDisposed = true;
+        Disposing?.Invoke(this, EventArgs.Empty);
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+    }
+}
+
+/// <summary>A GPU texture.</summary>
+public class Texture2D : GraphicsResource
+{
+    private ITexture _backend;
+    private byte[]? _pixels;
+
     internal Texture2D(ITexture backend, int width, int height)
     {
-        Backend = backend;
+        _backend = backend;
+        Width = width;
+        Height = height;
+        GraphicsDevice = GraphicsDevice.Active;
+    }
+
+    public Texture2D(GraphicsDevice graphicsDevice, int width, int height)
+    {
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "Texture dimensions must be positive.");
+        }
+
+        GraphicsDevice = graphicsDevice;
+        _backend = graphicsDevice.CreateBackendTexture(width, height);
         Width = width;
         Height = height;
     }
@@ -72,12 +235,119 @@ public class Texture2D : IDisposable
 
     public int Height { get; }
 
-    public GraphicsDevice? GraphicsDevice { get; internal set; }
+    internal ITexture Backend => _backend;
 
-    internal ITexture Backend { get; }
+    internal byte[]? PixelSnapshot => _pixels;
 
-    public void Dispose()
+    public void SetData<T>(T[] data)
+        where T : struct
     {
+        ArgumentNullException.ThrowIfNull(data);
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        byte[] rgba = ToRgbaBytes(data);
+        if (rgba.Length < Width * Height * 4)
+        {
+            throw new ArgumentException("Data is smaller than the texture.", nameof(data));
+        }
+
+        GraphicsDevice device = GraphicsDevice ??
+            throw new InvalidOperationException("The texture is not bound to a graphics device.");
+        _backend = device.Backend.CreateTexture(Width, Height, rgba, premultiplied: true);
+        _pixels = rgba;
+    }
+
+    public void GetData<T>(T[] data)
+        where T : struct
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        byte[] rgba = _pixels ??
+            throw new NotSupportedException("Pixel readback is only available for textures written with SetData.");
+
+        int pixels = Width * Height;
+        if (typeof(T) == typeof(byte))
+        {
+            int count = Math.Min(data.Length, rgba.Length);
+            Array.Copy(rgba, data, count);
+            return;
+        }
+
+        if (typeof(T) == typeof(Color))
+        {
+            var colors = (Color[])(object)data;
+            int count = Math.Min(colors.Length, pixels);
+            for (int i = 0; i < count; i++)
+            {
+                colors[i] = new Color(rgba[(i * 4) + 0], rgba[(i * 4) + 1], rgba[(i * 4) + 2], rgba[(i * 4) + 3]);
+            }
+
+            return;
+        }
+
+        throw new NotSupportedException($"GetData<{typeof(T).Name}> is not supported.");
+    }
+
+    internal static Texture2D FromPixels(int width, int height, byte[] rgba, bool premultiplied)
+    {
+        GraphicsDevice device = GraphicsDevice.Active ??
+            throw new InvalidOperationException("No graphics device has been created.");
+        ITexture backend = device.Backend.CreateTexture(width, height, rgba, premultiplied);
+        var texture = new Texture2D(backend, width, height);
+        if (premultiplied)
+        {
+            texture._pixels = rgba;
+        }
+        else
+        {
+            texture._pixels = Premultiply(rgba);
+        }
+
+        return texture;
+    }
+
+    private static byte[] ToRgbaBytes<T>(T[] data)
+        where T : struct
+    {
+        if (data is byte[] bytes)
+        {
+            return bytes;
+        }
+
+        if (data is Color[] colors)
+        {
+            var rgba = new byte[colors.Length * 4];
+            for (int i = 0; i < colors.Length; i++)
+            {
+                rgba[(i * 4) + 0] = colors[i].R;
+                rgba[(i * 4) + 1] = colors[i].G;
+                rgba[(i * 4) + 2] = colors[i].B;
+                rgba[(i * 4) + 3] = colors[i].A;
+            }
+
+            return rgba;
+        }
+
+        throw new NotSupportedException($"SetData<{typeof(T).Name}> is not supported.");
+    }
+
+    private static byte[] Premultiply(byte[] rgba)
+    {
+        var result = new byte[rgba.Length];
+        for (int i = 0; i + 3 < rgba.Length; i += 4)
+        {
+            byte a = rgba[i + 3];
+            result[i + 0] = (byte)(rgba[i + 0] * a / 255);
+            result[i + 1] = (byte)(rgba[i + 1] * a / 255);
+            result[i + 2] = (byte)(rgba[i + 2] * a / 255);
+            result[i + 3] = a;
+        }
+
+        return result;
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
     }
 }
 
@@ -135,7 +405,11 @@ public class GraphicsDevice : IDisposable
     {
         _backend = backend;
         Viewport = new Viewport(0, 0, backend.Width, backend.Height);
+        Active = this;
     }
+
+    /// <summary>The most recently created device; Dorado runs one title per process.</summary>
+    public static GraphicsDevice? Active { get; private set; }
 
     public Viewport Viewport { get; set; }
 
