@@ -348,7 +348,17 @@ public struct Color : IEquatable<Color>
 
     public static Color YellowGreen => new(0xFF9ACD32);
 
-    public readonly uint PackedValue => ((uint)A << 24) | ((uint)R << 16) | ((uint)G << 8) | B;
+    public uint PackedValue
+    {
+        readonly get => ((uint)A << 24) | ((uint)R << 16) | ((uint)G << 8) | B;
+        set
+        {
+            R = (byte)(value >> 16);
+            G = (byte)(value >> 8);
+            B = (byte)value;
+            A = (byte)(value >> 24);
+        }
+    }
 
     public readonly Vector3 ToVector3() => new(R / 255f, G / 255f, B / 255f);
 

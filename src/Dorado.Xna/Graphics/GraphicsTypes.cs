@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.ObjectModel;
 using Dorado.Platform;
 
@@ -94,14 +95,15 @@ public enum SetDataOptions
     NoOverwrite = 2,
 }
 
-/// <summary>A display mode supported by an adapter.</summary>
-public class DisplayMode
+/// <summary>A display mode supported by an adapter; a value type matching XNA 3.1.</summary>
+public struct DisplayMode : IEquatable<DisplayMode>
 {
-    public DisplayMode(int width, int height, SurfaceFormat format)
+    internal DisplayMode(int width, int height, SurfaceFormat format, int refreshRate = 60)
     {
         Width = width;
         Height = height;
         Format = format;
+        RefreshRate = refreshRate;
     }
 
     public int Width { get; }
@@ -110,12 +112,75 @@ public class DisplayMode
 
     public SurfaceFormat Format { get; }
 
+    public int RefreshRate { get; }
+
     public float AspectRatio => Height == 0 ? 0f : (float)Width / Height;
+
+    public Rectangle TitleSafeArea => new(0, 0, Width, Height);
+
+    public readonly bool Equals(DisplayMode other) =>
+        Width == other.Width && Height == other.Height && Format == other.Format && RefreshRate == other.RefreshRate;
+
+    public override readonly bool Equals(object? obj) => obj is DisplayMode other && Equals(other);
+
+    public override readonly int GetHashCode() => HashCode.Combine(Width, Height, Format, RefreshRate);
+
+    public override readonly string ToString() =>
+        $"{{Width:{Width} Height:{Height} Format:{Format} RefreshRate:{RefreshRate}}}";
+
+    public static bool operator ==(DisplayMode left, DisplayMode right) => left.Equals(right);
+
+    public static bool operator !=(DisplayMode left, DisplayMode right) => !left.Equals(right);
+}
+
+/// <summary>The display modes an adapter supports, queryable by surface format.</summary>
+public struct DisplayModeCollection : IEnumerable<DisplayMode>, IEquatable<DisplayModeCollection>
+{
+    private readonly DisplayMode[]? _modes;
+
+    internal DisplayModeCollection(DisplayMode[] modes) => _modes = modes;
+
+    public IEnumerable<DisplayMode> this[SurfaceFormat format] =>
+        (_modes ?? Array.Empty<DisplayMode>()).Where(mode => mode.Format == format);
+
+    public IEnumerator<DisplayMode> GetEnumerator() =>
+        ((IEnumerable<DisplayMode>)(_modes ?? Array.Empty<DisplayMode>())).GetEnumerator();
+
+    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public readonly bool Equals(DisplayModeCollection other)
+    {
+        DisplayMode[] left = _modes ?? Array.Empty<DisplayMode>();
+        DisplayMode[] right = other._modes ?? Array.Empty<DisplayMode>();
+        return left.SequenceEqual(right);
+    }
+
+    public override readonly bool Equals(object? obj) => obj is DisplayModeCollection other && Equals(other);
+
+    public override readonly int GetHashCode()
+    {
+        HashCode hash = new();
+        foreach (DisplayMode mode in _modes ?? Array.Empty<DisplayMode>())
+        {
+            hash.Add(mode);
+        }
+
+        return hash.ToHashCode();
+    }
+
+    public static bool operator ==(DisplayModeCollection left, DisplayModeCollection right) => left.Equals(right);
+
+    public static bool operator !=(DisplayModeCollection left, DisplayModeCollection right) => !left.Equals(right);
 }
 
 /// <summary>A graphics adapter; Dorado exposes a single synthetic adapter.</summary>
 public class GraphicsAdapter
 {
+    private static readonly DisplayMode[] Modes =
+    {
+        new(480, 272, SurfaceFormat.Color),
+    };
+
     private static readonly GraphicsAdapter Default = new();
 
     public static GraphicsAdapter DefaultAdapter => Default;
@@ -125,11 +190,31 @@ public class GraphicsAdapter
 
     public virtual DisplayMode CurrentDisplayMode => new(480, 272, SurfaceFormat.Color);
 
+    public virtual DisplayModeCollection SupportedDisplayModes => new(Modes);
+
     public virtual bool IsWideScreen => true;
 
     public virtual string Description => "Dorado Software Adapter";
 
     public virtual string DeviceName => "Dorado";
+}
+
+/// <summary>How a texture is intended to be used; Dorado treats all flags as hints.</summary>
+[Flags]
+public enum TextureUsage
+{
+    None = 0,
+    AutoGenerateMipMap = 0x400,
+    Linear = 0x40000000,
+    Tiled = int.MinValue,
+}
+
+/// <summary>How a render target's contents survive a device reset.</summary>
+public enum RenderTargetUsage
+{
+    DiscardContents = 0,
+    PreserveContents = 1,
+    PlatformContents = 2,
 }
 
 /// <summary>Swap-chain and presentation settings.</summary>
@@ -325,8 +410,14 @@ public class GraphicsResource : IDisposable
     }
 }
 
+/// <summary>Base class for GPU textures.</summary>
+public abstract class Texture : GraphicsResource
+{
+    public int LevelCount { get; internal set; } = 1;
+}
+
 /// <summary>A GPU texture.</summary>
-public class Texture2D : GraphicsResource
+public class Texture2D : Texture
 {
     private ITexture _backend;
     private byte[]? _pixels;
@@ -340,6 +431,17 @@ public class Texture2D : GraphicsResource
     }
 
     public Texture2D(GraphicsDevice graphicsDevice, int width, int height)
+        : this(graphicsDevice, width, height, 1, TextureUsage.None, SurfaceFormat.Color)
+    {
+    }
+
+    public Texture2D(
+        GraphicsDevice graphicsDevice,
+        int width,
+        int height,
+        int numberLevels,
+        TextureUsage usage,
+        SurfaceFormat format)
     {
         ArgumentNullException.ThrowIfNull(graphicsDevice);
         if (width <= 0 || height <= 0)
@@ -351,11 +453,18 @@ public class Texture2D : GraphicsResource
         _backend = graphicsDevice.CreateBackendTexture(width, height);
         Width = width;
         Height = height;
+        LevelCount = Math.Max(1, numberLevels);
+        TextureUsage = usage;
+        Format = format;
     }
 
     public int Width { get; }
 
     public int Height { get; }
+
+    public SurfaceFormat Format { get; } = SurfaceFormat.Color;
+
+    public TextureUsage TextureUsage { get; } = TextureUsage.None;
 
     internal ITexture Backend => _backend;
 
@@ -364,6 +473,10 @@ public class Texture2D : GraphicsResource
     public void SetData<T>(T[] data)
         where T : struct =>
         SetData(0, null, data, 0, data?.Length ?? 0, SetDataOptions.None);
+
+    public void SetData<T>(T[] data, int startIndex, int elementCount, SetDataOptions options)
+        where T : struct =>
+        SetData(0, null, data, startIndex, elementCount, options);
 
     public void SetData<T>(int level, Rectangle? rect, T[] data, int startIndex, int elementCount, SetDataOptions options)
         where T : struct
@@ -444,6 +557,65 @@ public class Texture2D : GraphicsResource
             for (int i = 0; i < count; i++)
             {
                 colors[i] = new Color(rgba[(i * 4) + 0], rgba[(i * 4) + 1], rgba[(i * 4) + 2], rgba[(i * 4) + 3]);
+            }
+
+            return;
+        }
+
+        throw new NotSupportedException($"GetData<{typeof(T).Name}> is not supported.");
+    }
+
+    public void GetData<T>(int level, Rectangle? rect, T[] data, int startIndex, int elementCount)
+        where T : struct
+    {
+        ArgumentNullException.ThrowIfNull(data);
+        if (startIndex < 0 || elementCount < 0 || startIndex + elementCount > data.Length)
+        {
+            throw new ArgumentException("The destination range is outside the array.", nameof(data));
+        }
+
+        byte[] rgba = _pixels ??
+            throw new NotSupportedException("Pixel readback is only available for textures written with SetData.");
+
+        Rectangle region = rect ?? new Rectangle(0, 0, Width, Height);
+        if (region.X < 0 || region.Y < 0 || region.Right > Width || region.Bottom > Height)
+        {
+            throw new ArgumentOutOfRangeException(nameof(rect), "The region is outside the texture.");
+        }
+
+        if (typeof(T) == typeof(Color))
+        {
+            var colors = (Color[])(object)data;
+            int copied = 0;
+            for (int row = 0; row < region.Height && copied < elementCount; row++)
+            {
+                for (int column = 0; column < region.Width && copied < elementCount; column++)
+                {
+                    int source = (((region.Y + row) * Width) + region.X + column) * 4;
+                    colors[startIndex + copied] = new Color(
+                        rgba[source], rgba[source + 1], rgba[source + 2], rgba[source + 3]);
+                    copied++;
+                }
+            }
+
+            return;
+        }
+
+        if (typeof(T) == typeof(byte))
+        {
+            var bytes = (byte[])(object)data;
+            int copied = 0;
+            for (int row = 0; row < region.Height && copied < elementCount; row++)
+            {
+                int source = ((((region.Y + row) * Width) + region.X) * 4);
+                int count = Math.Min(region.Width * 4, elementCount - copied);
+                if (source + count > rgba.Length)
+                {
+                    break;
+                }
+
+                Array.Copy(rgba, source, bytes, startIndex + copied, count);
+                copied += count;
             }
 
             return;
@@ -569,22 +741,145 @@ public struct Viewport
     public float MaxDepth { get; set; }
 }
 
-/// <summary>A render-target texture.</summary>
-public class RenderTarget2D : Texture2D
+/// <summary>A surface a device can render into.</summary>
+public class RenderTarget : GraphicsResource
 {
-    private readonly GraphicsDevice _device;
-
-    public RenderTarget2D(GraphicsDevice graphicsDevice, int width, int height, int numberLevels, SurfaceFormat format)
-        : base(graphicsDevice.CreateBackendTexture(width, height), width, height)
+    internal RenderTarget(GraphicsDevice graphicsDevice, int width, int height, RenderTargetUsage usage)
     {
-        _device = graphicsDevice;
-        Format = format;
+        ArgumentNullException.ThrowIfNull(graphicsDevice);
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(width), "Render target dimensions must be positive.");
+        }
+
         GraphicsDevice = graphicsDevice;
+        Width = width;
+        Height = height;
+        RenderTargetUsage = usage;
+    }
+
+    public int Width { get; }
+
+    public int Height { get; }
+
+    public RenderTargetUsage RenderTargetUsage { get; }
+
+    public bool IsContentLost => false;
+
+    public event EventHandler? ContentLost;
+
+    protected virtual void OnContentLost() => ContentLost?.Invoke(this, EventArgs.Empty);
+}
+
+/// <summary>A render-target texture; retrieve the sampled surface with <see cref="GetTexture"/>.</summary>
+public class RenderTarget2D : RenderTarget
+{
+    private readonly Texture2D _surface;
+
+    public RenderTarget2D(
+        GraphicsDevice graphicsDevice,
+        int width,
+        int height,
+        int numberLevels,
+        SurfaceFormat format)
+        : this(graphicsDevice, width, height, numberLevels, format, RenderTargetUsage.DiscardContents)
+    {
+    }
+
+    public RenderTarget2D(
+        GraphicsDevice graphicsDevice,
+        int width,
+        int height,
+        int numberLevels,
+        SurfaceFormat format,
+        RenderTargetUsage usage)
+        : base(graphicsDevice, width, height, usage)
+    {
+        Format = format;
+        _surface = graphicsDevice.CreateTexture(width, height, ReadOnlySpan<byte>.Empty, premultiplied: true);
+        _surface.LevelCount = Math.Max(1, numberLevels);
+        _surface.GraphicsDevice = graphicsDevice;
+    }
+
+    public RenderTarget2D(
+        GraphicsDevice graphicsDevice,
+        int width,
+        int height,
+        int numberLevels,
+        SurfaceFormat format,
+        MultiSampleType multiSampleType,
+        int multiSampleQuality)
+        : this(graphicsDevice, width, height, numberLevels, format, RenderTargetUsage.DiscardContents)
+    {
+        _ = multiSampleType;
+        _ = multiSampleQuality;
+    }
+
+    public RenderTarget2D(
+        GraphicsDevice graphicsDevice,
+        int width,
+        int height,
+        int numberLevels,
+        SurfaceFormat format,
+        MultiSampleType multiSampleType,
+        int multiSampleQuality,
+        RenderTargetUsage usage)
+        : this(graphicsDevice, width, height, numberLevels, format, usage)
+    {
+        _ = multiSampleType;
+        _ = multiSampleQuality;
     }
 
     public SurfaceFormat Format { get; }
 
-    public Texture2D GetTexture() => this;
+    internal ITexture Backend => _surface.Backend;
+
+    public Texture2D GetTexture() => _surface;
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _surface.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+}
+
+/// <summary>A texture that receives a copy of the back buffer.</summary>
+public class ResolveTexture2D : Texture2D
+{
+    public ResolveTexture2D(GraphicsDevice graphicsDevice, int width, int height, int numberLevels, SurfaceFormat format)
+        : base(graphicsDevice, width, height, numberLevels, TextureUsage.None, format)
+    {
+    }
+
+    public bool IsContentLost => false;
+
+    public event EventHandler? ContentLost;
+
+    protected virtual void OnContentLost() => ContentLost?.Invoke(this, EventArgs.Empty);
+}
+
+/// <summary>Raised when a resource cannot be allocated on the device.</summary>
+[Serializable]
+public sealed class OutOfVideoMemoryException : System.Runtime.InteropServices.ExternalException
+{
+    public OutOfVideoMemoryException()
+        : base("The video memory allocation failed.")
+    {
+    }
+
+    public OutOfVideoMemoryException(string message)
+        : base(message)
+    {
+    }
+
+    public OutOfVideoMemoryException(string message, Exception inner)
+        : base(message, inner)
+    {
+    }
 }
 
 /// <summary>The graphics device; a thin façade over an <see cref="IGraphicsBackend"/>.</summary>
@@ -592,6 +887,7 @@ public class GraphicsDevice : IDisposable
 {
     private readonly IGraphicsBackend _backend;
     private Rectangle _scissorRectangle;
+    private RenderTarget2D? _renderTarget;
 
     public GraphicsDevice(IGraphicsBackend backend)
     {
@@ -650,11 +946,37 @@ public class GraphicsDevice : IDisposable
     public void Clear(ClearOptions options, Vector4 color, float depth, int stencil, Rectangle[] regions) =>
         Clear(new Color(color));
 
-    public void SetRenderTarget(RenderTarget2D? renderTarget) =>
+    public void SetRenderTarget(RenderTarget2D? renderTarget)
+    {
+        _renderTarget = renderTarget;
         _backend.SetRenderTarget(renderTarget?.Backend);
+    }
 
-    public void SetRenderTarget(int renderTargetIndex, RenderTarget2D? renderTarget) =>
-        _backend.SetRenderTarget(renderTarget?.Backend);
+    public void SetRenderTarget(int renderTargetIndex, RenderTarget2D? renderTarget)
+    {
+        _ = renderTargetIndex;
+        SetRenderTarget(renderTarget);
+    }
+
+    public RenderTarget? GetRenderTarget(int renderTargetIndex)
+    {
+        _ = renderTargetIndex;
+        return _renderTarget;
+    }
+
+    /// <summary>
+    /// Copies the back buffer into <paramref name="resolveTexture"/>. The
+    /// software backend keeps no device back buffer, so Dorado leaves the
+    /// resolve surface untouched; titles that sample it render blank rather
+    /// than crash.
+    /// </summary>
+    public void ResolveBackBuffer(ResolveTexture2D resolveTexture)
+    {
+        ArgumentNullException.ThrowIfNull(resolveTexture);
+    }
+
+    public DisplayMode DisplayMode =>
+        new(_backend.Width, _backend.Height, PresentationParameters.BackBufferFormat);
 
     public void Reset()
     {

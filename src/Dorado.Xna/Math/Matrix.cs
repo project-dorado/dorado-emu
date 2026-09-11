@@ -50,19 +50,82 @@ public struct Matrix : IEquatable<Matrix>
         0f, 0f, 1f, 0f,
         0f, 0f, 0f, 1f);
 
-    public readonly Vector3 Backward => new(M31, M32, M33);
+    public Vector3 Backward
+    {
+        get => new(M31, M32, M33);
+        set
+        {
+            M31 = value.X;
+            M32 = value.Y;
+            M33 = value.Z;
+        }
+    }
 
-    public readonly Vector3 Down => new(-M21, -M22, -M23);
+    public Vector3 Down
+    {
+        get => new(-M21, -M22, -M23);
+        set
+        {
+            M21 = -value.X;
+            M22 = -value.Y;
+            M23 = -value.Z;
+        }
+    }
 
-    public readonly Vector3 Forward => new(-M31, -M32, -M33);
+    public Vector3 Forward
+    {
+        get => new(-M31, -M32, -M33);
+        set
+        {
+            M31 = -value.X;
+            M32 = -value.Y;
+            M33 = -value.Z;
+        }
+    }
 
-    public readonly Vector3 Left => new(-M11, -M12, -M13);
+    public Vector3 Left
+    {
+        get => new(-M11, -M12, -M13);
+        set
+        {
+            M11 = -value.X;
+            M12 = -value.Y;
+            M13 = -value.Z;
+        }
+    }
 
-    public readonly Vector3 Right => new(M11, M12, M13);
+    public Vector3 Right
+    {
+        get => new(M11, M12, M13);
+        set
+        {
+            M11 = value.X;
+            M12 = value.Y;
+            M13 = value.Z;
+        }
+    }
 
-    public readonly Vector3 Up => new(M21, M22, M23);
+    public Vector3 Translation
+    {
+        get => new(M41, M42, M43);
+        set
+        {
+            M41 = value.X;
+            M42 = value.Y;
+            M43 = value.Z;
+        }
+    }
 
-    public readonly Vector3 Translation => new(M41, M42, M43);
+    public Vector3 Up
+    {
+        get => new(M21, M22, M23);
+        set
+        {
+            M21 = value.X;
+            M22 = value.Y;
+            M23 = value.Z;
+        }
+    }
 
     public static Matrix CreateBillboard(
         Vector3 objectPosition,

@@ -6,8 +6,16 @@
  * titles load and run headlessly.
  */
 #include <stdint.h>
-/* 145 generated exports */
+/* 166 generated exports */
 #include <stddef.h>
+
+uint32_t ZDKCloud_GetNearbyNetworks(uint8_t* networkMacAddrs, uint32_t cbNetworkMacAddrs, uint32_t* cActualNetworks)
+{
+    (void)networkMacAddrs;
+    (void)cbNetworkMacAddrs;
+    if (cActualNetworks) *cActualNetworks = 0;
+    return 0;
+}
 
 uint32_t ZDKGL_BeginDraw(void)
 {
@@ -1007,5 +1015,135 @@ uint32_t ZDKInput_EnableInputMessages(int32_t fEnable)
 uint32_t ZDKInput_GetNextInputMessage(void** msg)
 {
     if (msg) *msg = 0;
+    return 0;
+}
+
+uint32_t ZDKMedia_Queue_PlaySongFromURL(const uint16_t* szName, const uint16_t* szURL)
+{
+    (void)szName;
+    (void)szURL;
+    return 0;
+}
+
+uint32_t ZDKMedia_Radio_GetPreset(int32_t iPreset, void** preset)
+{
+    (void)iPreset;
+    if (preset) *preset = 0;
+    return 0;
+}
+
+uint32_t ZDKMedia_Radio_GetPresetCount(int32_t* cPresets)
+{
+    if (cPresets) *cPresets = 0;
+    return 0;
+}
+
+uint32_t ZDKMedia_Radio_Play(int32_t kHz, int32_t subChannel)
+{
+    (void)kHz;
+    (void)subChannel;
+    return 0;
+}
+
+uint32_t ZDKMedia_Radio_SetPreset(void** preset, int32_t fSet)
+{
+    if (preset) *preset = 0;
+    (void)fSet;
+    return 0;
+}
+
+uint32_t ZDKMedia_Video_GetPlayPosition(uint32_t* pMsecPlayPosition)
+{
+    if (pMsecPlayPosition) *pMsecPlayPosition = 0;
+    return 0;
+}
+
+uint32_t ZDKMedia_Video_GetPlayState(uint32_t* pPlayState)
+{
+    if (pPlayState) *pPlayState = 0;
+    return 0;
+}
+
+uint32_t ZDKMedia_Video_PlayVideoFromFile(const uint16_t* szName, const uint16_t* szFilePath)
+{
+    (void)szName;
+    (void)szFilePath;
+    return 0;
+}
+
+uint32_t ZDKMedia_Video_SetPlayPosition(uint32_t msecPlayPosition)
+{
+    (void)msecPlayPosition;
+    return 0;
+}
+
+uint32_t ZDKMedia_Video_SetPlayState(uint32_t playState)
+{
+    (void)playState;
+    return 0;
+}
+
+uint32_t ZDKSystem_CloseHash(void* handle, uint8_t* pbhash, uint32_t cbhash, uint32_t* pcbActualHash)
+{
+    (void)handle;
+    (void)pbhash;
+    (void)cbhash;
+    if (pcbActualHash) *pcbActualHash = 0;
+    return 0;
+}
+
+uint32_t ZDKSystem_CloseMessageBox(void)
+{
+    return 0;
+}
+
+uint32_t ZDKSystem_GetLocalTimeOffset(int32_t* offsetInMinutes)
+{
+    if (offsetInMinutes) *offsetInMinutes = 0;
+    return 0;
+}
+
+uint32_t ZDKSystem_GetMessageBoxState(void)
+{
+    return 0;
+}
+
+uint32_t ZDKSystem_LaunchBrowser(const uint16_t* url)
+{
+    (void)url;
+    return 0;
+}
+
+uint32_t ZDKSystem_LaunchMarketplaceSearch(const uint16_t* searchTerm)
+{
+    (void)searchTerm;
+    return 0;
+}
+
+uint32_t ZDKSystem_OpenHash(uint32_t hashType, void** handle)
+{
+    (void)hashType;
+    if (handle) *handle = 0;
+    return 0;
+}
+
+uint32_t ZDKSystem_ShowMessageBox(const uint16_t* text, uint32_t type)
+{
+    (void)text;
+    (void)type;
+    return 0;
+}
+
+uint32_t ZDKSystem_SignalUserActivityEx(uint32_t flags)
+{
+    (void)flags;
+    return 0;
+}
+
+uint32_t ZDKSystem_UpdateHash(void* handle, uint8_t* pbdata, uint32_t cbdata)
+{
+    (void)handle;
+    (void)pbdata;
+    (void)cbdata;
     return 0;
 }

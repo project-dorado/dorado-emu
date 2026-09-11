@@ -74,19 +74,19 @@ uint32_t ZDKSystem_GetDeviceId(uint8_t* deviceId)
 
 /* ---- ZDKCloud: offline placeholder ------------------------------------ */
 
-uint32_t ZDKCloud_Connect(void) { return 1; }
+uint32_t ZDKCloud_Connect(void) { return 0; }
 void ZDKCloud_Disconnect(void) {}
-uint32_t ZDKCloud_ShowConnectivityWizard(void) { return 1; }
+uint32_t ZDKCloud_ShowConnectivityWizard(void) { return 0; }
 
 uint32_t ZDKCloud_IsConnected(uint32_t* pfConnected)
 {
-    if (pfConnected != NULL) *pfConnected = 0;
+    if (pfConnected != NULL) *pfConnected = 1;
     return 0;
 }
 
 uint32_t ZDKCloud_GetConnectionState(uint32_t* pConnectionState)
 {
-    if (pConnectionState != NULL) *pConnectionState = 0;
+    if (pConnectionState != NULL) *pConnectionState = 1;
     return 0;
 }
 
@@ -174,35 +174,35 @@ uint32_t ZDKCloud_CloseObject(uint32_t hCloudObj)
 uint32_t ZDKMedia_Queue_StartSongAnalysis(uint32_t hSong, uint32_t msecSampleInterval, uint32_t resultsMode)
 {
     (void)hSong; (void)msecSampleInterval; (void)resultsMode;
-    return 1;
+    return 0;
 }
 
 uint32_t ZDKMedia_Queue_GetSongAnalysisData(void* buf, uint32_t cbBuf, uint32_t* cbFilled)
 {
     (void)buf; (void)cbBuf;
     if (cbFilled != NULL) *cbFilled = 0;
-    return 1;
+    return 0;
 }
 
-uint32_t ZDKMedia_Queue_StopSongAnalysis(void) { return 1; }
+uint32_t ZDKMedia_Queue_StopSongAnalysis(void) { return 0; }
 
 uint32_t ZDKMedia_Queue_Lock(int32_t fLock)
 {
     (void)fLock;
-    return 1;
+    return 0;
 }
 
 uint32_t ZDKMedia_Queue_SetPlayPosition(uint32_t msecPlayPosition)
 {
     (void)msecPlayPosition;
-    return 1;
+    return 0;
 }
 
 uint32_t ZDKMedia_Item_GetMediaId(uint32_t hItem, uint8_t* mediaId)
 {
     (void)hItem;
     if (mediaId != NULL) memset(mediaId, 0, 16);
-    return 1;
+    return 0;
 }
 
 uint32_t Media_Item_GetHashCode(uint32_t handle, uint32_t* hashCode)

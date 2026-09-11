@@ -96,12 +96,23 @@ internal sealed class ZuneLoadContext : AssemblyLoadContext
             return IntPtr.Zero;
         }
 
+        bool debug = Environment.GetEnvironmentVariable("DORADO_ZDK_DEBUG") == "1";
         foreach (string candidate in ZdkLibraryCandidates())
         {
             if (File.Exists(candidate) && NativeLibrary.TryLoad(candidate, out IntPtr handle))
             {
+                if (debug)
+                {
+                    Console.Error.WriteLine($"[zdk] {unmanagedDllName} -> {candidate}");
+                }
+
                 return handle;
             }
+        }
+
+        if (debug)
+        {
+            Console.Error.WriteLine($"[zdk] {unmanagedDllName} unresolved");
         }
 
         return IntPtr.Zero;

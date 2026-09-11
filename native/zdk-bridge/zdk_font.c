@@ -187,6 +187,139 @@ static int load_typeface(const char* dir, const char* typeface, uint32_t style, 
     return 0;
 }
 
+static const char* const kFontFallbacks[] = {
+    "DejaVuSans.ttf", "NotoSans-Regular.ttf", "FreeSans.ttf", "LiberationSans-Regular.ttf",
+    "Arial.ttf", "arial.ttf", "AdwaitaSans-Regular.ttf",
+};
+
+/* Recursively looks for a preferred fallback file in a font tree. */
+static int scan_font_tree_named(const char* dir, int depth, unsigned char** out_data)
+{
+    if (depth > 4)
+    {
+        return 0;
+    }
+
+    DIR* folder = opendir(dir);
+    if (folder == NULL)
+    {
+        return 0;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(folder)) != NULL)
+    {
+        const char* dot = strrchr(entry->d_name, '.');
+        if (dot == NULL || (strcasecmp(dot, ".ttf") != 0 && strcasecmp(dot, ".otf") != 0))
+        {
+            continue;
+        }
+
+        for (size_t i = 0; i < sizeof(kFontFallbacks) / sizeof(kFontFallbacks[0]); i++)
+        {
+            if (strcasecmp(entry->d_name, kFontFallbacks[i]) != 0)
+            {
+                continue;
+            }
+
+            char path[1024];
+            snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+            if (try_font_path(path, out_data))
+            {
+                closedir(folder);
+                return 1;
+            }
+        }
+    }
+
+    rewinddir(folder);
+    while ((entry = readdir(folder)) != NULL)
+    {
+        if (entry->d_name[0] == '.')
+        {
+            continue;
+        }
+
+        char sub[1024];
+        snprintf(sub, sizeof(sub), "%s/%s", dir, entry->d_name);
+        DIR* probe = opendir(sub);
+        if (probe == NULL)
+        {
+            continue;
+        }
+
+        closedir(probe);
+        if (scan_font_tree_named(sub, depth + 1, out_data))
+        {
+            closedir(folder);
+            return 1;
+        }
+    }
+
+    closedir(folder);
+    return 0;
+}
+
+/* Recursively returns the first TrueType face (preferring .ttf over .otf). */
+static int scan_font_tree_any(const char* dir, int depth, unsigned char** out_data)
+{
+    if (depth > 4)
+    {
+        return 0;
+    }
+
+    DIR* folder = opendir(dir);
+    if (folder == NULL)
+    {
+        return 0;
+    }
+
+    struct dirent* entry;
+    while ((entry = readdir(folder)) != NULL)
+    {
+        const char* dot = strrchr(entry->d_name, '.');
+        if (dot == NULL || strcasecmp(dot, ".ttf") != 0)
+        {
+            continue;
+        }
+
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name);
+        if (try_font_path(path, out_data))
+        {
+            closedir(folder);
+            return 1;
+        }
+    }
+
+    rewinddir(folder);
+    while ((entry = readdir(folder)) != NULL)
+    {
+        if (entry->d_name[0] == '.')
+        {
+            continue;
+        }
+
+        char sub[1024];
+        snprintf(sub, sizeof(sub), "%s/%s", dir, entry->d_name);
+        DIR* probe = opendir(sub);
+        if (probe == NULL)
+        {
+            continue;
+        }
+
+        closedir(probe);
+        if (scan_font_tree_any(sub, depth + 1, out_data))
+        {
+            closedir(folder);
+            return 1;
+        }
+    }
+
+    closedir(folder);
+    return 0;
+}
+
 static int load_font_bytes(const char* typeface, uint32_t style, unsigned char** out_data)
 {
     const char* font_dir = getenv("DORADO_FONT_DIR");
@@ -214,31 +347,33 @@ static int load_font_bytes(const char* typeface, uint32_t style, unsigned char**
         }
     }
 
-    static const char* const fallbacks[] = {
-        "DejaVuSans.ttf", "NotoSans-Regular.ttf", "FreeSans.ttf", "LiberationSans-Regular.ttf",
-        "Arial.ttf", "arial.ttf", "AdwaitaSans-Regular.ttf",
-    };
-    for (size_t j = 0; j < sizeof(fallbacks) / sizeof(fallbacks[0]); j++)
+    /* Many distributions keep each family in its own subdirectory, so a flat
+       name probe at the root of the font directory is not enough. */
+    for (size_t i = 0; i < sizeof(kFontDirs) / sizeof(kFontDirs[0]); i++)
     {
-        if (font_dir != NULL && font_dir[0] != 0)
+        if (scan_font_tree_named(kFontDirs[i], 0, out_data))
         {
-            char path[1024];
-            snprintf(path, sizeof(path), "%s/%s", font_dir, fallbacks[j]);
-            if (try_font_path(path, out_data))
-            {
-                return 1;
-            }
+            return 1;
         }
+    }
 
-        for (size_t i = 0; i < sizeof(kFontDirs) / sizeof(kFontDirs[0]); i++)
+    if (font_dir != NULL && font_dir[0] != 0 && scan_font_tree_named(font_dir, 0, out_data))
+    {
+        return 1;
+    }
+
+    /* Last resort: any TrueType face on the system, so layout still runs. */
+    for (size_t i = 0; i < sizeof(kFontDirs) / sizeof(kFontDirs[0]); i++)
+    {
+        if (scan_font_tree_any(kFontDirs[i], 0, out_data))
         {
-            char path[1024];
-            snprintf(path, sizeof(path), "%s/%s", kFontDirs[i], fallbacks[j]);
-            if (try_font_path(path, out_data))
-            {
-                return 1;
-            }
+            return 1;
         }
+    }
+
+    if (font_dir != NULL && font_dir[0] != 0)
+    {
+        return scan_font_tree_any(font_dir, 0, out_data);
     }
 
     return 0;

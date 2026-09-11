@@ -89,6 +89,21 @@ public struct Vector2 : IEquatable<Vector2>
         return length == 0f ? Zero : new Vector2(value.X / length, value.Y / length);
     }
 
+    public void Normalize()
+    {
+        float length = Length();
+        if (length == 0f)
+        {
+            X = 0f;
+            Y = 0f;
+            return;
+        }
+
+        float inverse = 1f / length;
+        X *= inverse;
+        Y *= inverse;
+    }
+
     public static Vector2 Min(Vector2 value1, Vector2 value2) =>
         new(MathF.Min(value1.X, value2.X), MathF.Min(value1.Y, value2.Y));
 
@@ -488,6 +503,23 @@ public struct Vector3 : IEquatable<Vector3>
     {
         float length = value.Length();
         return length == 0f ? Zero : new Vector3(value.X / length, value.Y / length, value.Z / length);
+    }
+
+    public void Normalize()
+    {
+        float length = Length();
+        if (length == 0f)
+        {
+            X = 0f;
+            Y = 0f;
+            Z = 0f;
+            return;
+        }
+
+        float inverse = 1f / length;
+        X *= inverse;
+        Y *= inverse;
+        Z *= inverse;
     }
 
     public static Vector3 Min(Vector3 value1, Vector3 value2) => new(
@@ -913,6 +945,25 @@ public struct Vector4 : IEquatable<Vector4>
             : new Vector4(value.X / length, value.Y / length, value.Z / length, value.W / length);
     }
 
+    public void Normalize()
+    {
+        float length = Length();
+        if (length == 0f)
+        {
+            X = 0f;
+            Y = 0f;
+            Z = 0f;
+            W = 0f;
+            return;
+        }
+
+        float inverse = 1f / length;
+        X *= inverse;
+        Y *= inverse;
+        Z *= inverse;
+        W *= inverse;
+    }
+
     public static Vector4 operator +(Vector4 a, Vector4 b) => new(a.X + b.X, a.Y + b.Y, a.Z + b.Z, a.W + b.W);
 
     public static Vector4 operator -(Vector4 a, Vector4 b) => new(a.X - b.X, a.Y - b.Y, a.Z - b.Z, a.W - b.W);
@@ -1269,7 +1320,15 @@ public struct Rectangle : IEquatable<Rectangle>
 
     public readonly bool IsEmpty => Width == 0 && Height == 0 && X == 0 && Y == 0;
 
-    public readonly Point Location => new(X, Y);
+    public Point Location
+    {
+        get => new(X, Y);
+        set
+        {
+            X = value.X;
+            Y = value.Y;
+        }
+    }
 
     public readonly Point Center => new(X + (Width / 2), Y + (Height / 2));
 
@@ -1372,6 +1431,87 @@ public struct BoundingBox : IEquatable<BoundingBox>
         Min.X <= other.Max.X && Max.X >= other.Min.X &&
         Min.Y <= other.Max.Y && Max.Y >= other.Min.Y &&
         Min.Z <= other.Max.Z && Max.Z >= other.Min.Z;
+
+    public readonly ContainmentType Contains(Vector3 point) =>
+        Min.X <= point.X && point.X <= Max.X &&
+        Min.Y <= point.Y && point.Y <= Max.Y &&
+        Min.Z <= point.Z && point.Z <= Max.Z
+            ? ContainmentType.Contains
+            : ContainmentType.Disjoint;
+
+    public readonly void Contains(ref Vector3 point, out ContainmentType result) => result = Contains(point);
+
+    public readonly ContainmentType Contains(BoundingBox box)
+    {
+        if (Max.X < box.Min.X || Min.X > box.Max.X ||
+            Max.Y < box.Min.Y || Min.Y > box.Max.Y ||
+            Max.Z < box.Min.Z || Min.Z > box.Max.Z)
+        {
+            return ContainmentType.Disjoint;
+        }
+
+        return box.Min.X >= Min.X && box.Min.Y >= Min.Y && box.Min.Z >= Min.Z &&
+               box.Max.X <= Max.X && box.Max.Y <= Max.Y && box.Max.Z <= Max.Z
+            ? ContainmentType.Contains
+            : ContainmentType.Intersects;
+    }
+
+    public readonly void Contains(ref BoundingBox box, out ContainmentType result) => result = Contains(box);
+
+    public readonly float? Intersects(Ray ray)
+    {
+        Intersects(ref ray, out float? result);
+        return result;
+    }
+
+    public readonly void Intersects(ref Ray ray, out float? result)
+    {
+        float minimum = float.MinValue;
+        float maximum = float.MaxValue;
+
+        for (int axis = 0; axis < 3; axis++)
+        {
+            float origin = axis switch { 0 => ray.Position.X, 1 => ray.Position.Y, _ => ray.Position.Z };
+            float direction = axis switch { 0 => ray.Direction.X, 1 => ray.Direction.Y, _ => ray.Direction.Z };
+            float min = axis switch { 0 => Min.X, 1 => Min.Y, _ => Min.Z };
+            float max = axis switch { 0 => Max.X, 1 => Max.Y, _ => Max.Z };
+
+            if (MathF.Abs(direction) < 1e-8f)
+            {
+                if (origin < min || origin > max)
+                {
+                    result = null;
+                    return;
+                }
+
+                continue;
+            }
+
+            float inverse = 1f / direction;
+            float near = (min - origin) * inverse;
+            float far = (max - origin) * inverse;
+            if (near > far)
+            {
+                (near, far) = (far, near);
+            }
+
+            minimum = MathF.Max(minimum, near);
+            maximum = MathF.Min(maximum, far);
+            if (minimum > maximum)
+            {
+                result = null;
+                return;
+            }
+        }
+
+        if (maximum < 0f)
+        {
+            result = null;
+            return;
+        }
+
+        result = minimum < 0f ? 0f : minimum;
+    }
 
     public readonly bool Equals(BoundingBox other) => Min.Equals(other.Min) && Max.Equals(other.Max);
 

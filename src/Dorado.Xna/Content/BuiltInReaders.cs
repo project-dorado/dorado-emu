@@ -1,5 +1,6 @@
 using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Media;
 
 namespace Microsoft.Xna.Framework.Content;
 
@@ -125,6 +126,7 @@ internal static class BuiltInReaders
         {
             case "Texture2DReader": return new Texture2DReader();
             case "SoundEffectReader": return new SoundEffectReader();
+            case "SongReader": return new SongReader();
             case "SpriteFontReader": return new SpriteFontReader();
             case "StringReader": return new StringReader();
             case "CharReader": return new CharReader();
@@ -156,6 +158,7 @@ internal static class BuiltInReaders
         ArgumentNullException.ThrowIfNull(targetType);
         if (targetType == typeof(Texture2D)) return new Texture2DReader();
         if (targetType == typeof(SoundEffect)) return new SoundEffectReader();
+        if (targetType == typeof(Song)) return new SongReader();
         if (targetType == typeof(SpriteFont)) return new SpriteFontReader();
         if (targetType == typeof(string)) return new StringReader();
         if (targetType == typeof(char)) return new CharReader();
@@ -432,6 +435,20 @@ internal sealed class SoundEffectReader : ContentTypeReader<SoundEffect>
         int duration = input.ReadInt32();
 
         return SoundEffect.FromRaw(pcm, format, duration, loopStart, loopLength);
+    }
+}
+
+/// <summary>
+/// Reads a Zune media-library reference. XNA stores only the song's file path,
+/// so the offline shim surfaces that as a <see cref="Song"/> with no playback.
+/// </summary>
+internal sealed class SongReader : ContentTypeReader<Song>
+{
+    protected internal override Song Read(ContentReader input, Song? existingInstance)
+    {
+        string fileName = input.ReadString();
+        string name = Path.GetFileNameWithoutExtension(fileName);
+        return new Song(string.IsNullOrEmpty(name) ? fileName : name, fileName, 0);
     }
 }
 

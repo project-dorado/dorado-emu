@@ -1,3 +1,5 @@
+using Microsoft.Xna.Framework.Graphics;
+
 namespace Microsoft.Xna.Framework.Content;
 
 /// <summary>Loads XNB content relative to a root directory.</summary>
@@ -24,7 +26,21 @@ public class ContentManager : IDisposable
 
     public virtual T Load<T>(string assetName)
     {
-        string path = ResolvePath(assetName);
+        string? path = ResolvePathOrNull(assetName);
+        if (path is null)
+        {
+            if (typeof(T) == typeof(Texture2D))
+            {
+                string? image = ResolveImagePath(assetName);
+                if (image is not null)
+                {
+                    return (T)(object)ZuneImageLoader.Load(image);
+                }
+            }
+
+            throw new FileNotFoundException($"Content asset '{assetName}' was not found.", assetName);
+        }
+
         byte[] data = File.ReadAllBytes(path);
         object? value = XnbReader.Read(data, this, assetName);
         if (value is T typed)
@@ -41,6 +57,22 @@ public class ContentManager : IDisposable
             $"Content '{assetName}' is a {value.GetType().Name}, not {typeof(T).Name}.");
     }
 
+    /// <summary>
+    /// Loads an asset and hands any <see cref="IDisposable"/> result to
+    /// <paramref name="recordDisposableObject"/> for later unloading, matching
+    /// the XNA 3.1 content pipeline contract.
+    /// </summary>
+    public T ReadAsset<T>(string assetName, Action<IDisposable>? recordDisposableObject)
+    {
+        T asset = Load<T>(assetName);
+        if (recordDisposableObject is not null && asset is IDisposable disposable)
+        {
+            recordDisposableObject(disposable);
+        }
+
+        return asset;
+    }
+
     public virtual void Unload()
     {
     }
@@ -55,37 +87,125 @@ public class ContentManager : IDisposable
     {
     }
 
-    protected virtual Stream OpenStream(string assetName) => File.OpenRead(ResolvePath(assetName));
+    protected virtual Stream OpenStream(string assetName) =>
+        File.OpenRead(ResolvePathOrNull(assetName) ??
+            throw new FileNotFoundException($"Content asset '{assetName}' was not found.", assetName));
 
-    private string ResolvePath(string assetName)
+    private string? ResolvePathOrNull(string assetName)
     {
-        string name = assetName.Replace('\\', Path.DirectorySeparatorChar);
-        string combined = Path.IsPathRooted(name) ? name : Path.Combine(RootDirectory, name);
-        if (File.Exists(combined))
+        string name = assetName
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+
+        if (Path.IsPathRooted(name))
         {
-            return combined;
+            return ResolveExisting(name);
         }
 
-        string withExtension = combined + ".xnb";
+        // Titles sometimes pass paths that already include the root directory
+        // (for example "Content\Audio\blank"); accept both resolutions.
+        return ResolveExisting(Path.Combine(RootDirectory, name)) ??
+               ResolveExisting(name) ??
+               ResolveExisting(Path.Combine(Directory.GetCurrentDirectory(), name));
+    }
+
+    private string? ResolveImagePath(string assetName)
+    {
+        string name = assetName
+            .Replace('\\', Path.DirectorySeparatorChar)
+            .Replace('/', Path.DirectorySeparatorChar);
+        string[] extensions = { ".png", ".jpg", ".jpeg", ".bmp" };
+        foreach (string extension in extensions)
+        {
+            string? resolved = Path.IsPathRooted(name)
+                ? ResolveExisting(name + extension)
+                : ResolveExisting(Path.Combine(RootDirectory, name + extension)) ??
+                  ResolveExisting(name + extension);
+            if (resolved is not null)
+            {
+                return resolved;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Resolves <paramref name="path"/> exactly, then with an appended
+    /// <c>.xnb</c>, then case-insensitively. The official titles were built for
+    /// Windows, so their asset names do not always match on-disk casing (for
+    /// example <c>"Menu\Leaderboard\Box"</c> for <c>box.xnb</c>).
+    /// </summary>
+    private static string? ResolveExisting(string path)
+    {
+        if (File.Exists(path))
+        {
+            return path;
+        }
+
+        string withExtension = path + ".xnb";
         if (File.Exists(withExtension))
         {
             return withExtension;
         }
 
-        string rooted = Path.IsPathRooted(name)
-            ? name
-            : Path.Combine(Directory.GetCurrentDirectory(), combined);
-        if (File.Exists(rooted))
+        return FindCaseInsensitive(path) ?? FindCaseInsensitive(withExtension);
+    }
+
+    private static string? FindCaseInsensitive(string path)
+    {
+        string full;
+        try
         {
-            return rooted;
+            full = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return null;
         }
 
-        string rootedExtension = rooted + ".xnb";
-        if (File.Exists(rootedExtension))
+        string root = Path.GetPathRoot(full) ?? string.Empty;
+        string[] segments = full[root.Length..].Split(
+            Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
+        string current = root.Length == 0 ? Directory.GetCurrentDirectory() : root;
+
+        foreach (string segment in segments)
         {
-            return rootedExtension;
+            if (!Directory.Exists(current))
+            {
+                return null;
+            }
+
+            string? match = null;
+            foreach (string directory in Directory.EnumerateDirectories(current))
+            {
+                if (string.Equals(Path.GetFileName(directory), segment, StringComparison.OrdinalIgnoreCase))
+                {
+                    match = directory;
+                    break;
+                }
+            }
+
+            if (match is null)
+            {
+                foreach (string file in Directory.EnumerateFiles(current))
+                {
+                    if (string.Equals(Path.GetFileName(file), segment, StringComparison.OrdinalIgnoreCase))
+                    {
+                        match = file;
+                        break;
+                    }
+                }
+            }
+
+            if (match is null)
+            {
+                return null;
+            }
+
+            current = match;
         }
 
-        throw new FileNotFoundException($"Content asset '{assetName}' was not found.", combined);
+        return File.Exists(current) ? current : null;
     }
 }
