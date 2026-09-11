@@ -169,6 +169,14 @@ uint32_t ZDKCloud_CloseObject(uint32_t hCloudObj)
     return 1;
 }
 
+/* ---- ZDKInput: no queued input messages in headless mode --------------- */
+
+uint32_t ZDKInput_GetNextInputMessage(void* msg)
+{
+    if (msg != NULL) memset(msg, 0, 32);
+    return 1;
+}
+
 /* ---- ZDKMedia: analysis queue is inert --------------------------------- */
 
 uint32_t ZDKMedia_Queue_StartSongAnalysis(uint32_t hSong, uint32_t msecSampleInterval, uint32_t resultsMode)

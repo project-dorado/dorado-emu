@@ -6,7 +6,7 @@
  * titles load and run headlessly.
  */
 #include <stdint.h>
-/* 166 generated exports */
+/* 165 generated exports */
 #include <stddef.h>
 
 uint32_t ZDKCloud_GetNearbyNetworks(uint8_t* networkMacAddrs, uint32_t cbNetworkMacAddrs, uint32_t* cActualNetworks)
@@ -1009,12 +1009,6 @@ void ZDKGL_glViewport(int32_t x, int32_t y, int32_t width, int32_t height)
 uint32_t ZDKInput_EnableInputMessages(int32_t fEnable)
 {
     (void)fEnable;
-    return 0;
-}
-
-uint32_t ZDKInput_GetNextInputMessage(void** msg)
-{
-    if (msg) *msg = 0;
     return 0;
 }
 

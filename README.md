@@ -32,20 +32,25 @@ XNA graphics/audio/input onto the host platform.
 
 ## Status
 
-**M0 + M1 complete, plus ZCSTFS volume parsing.** Container parsing
-(`.ccgame`/`.zcp`), the ZCSTFS mini filesystem, and a working desktop XNA 3.1
-runtime that renders golden frames are implemented and covered by **41 tests**.
-There is no working Zune emulator anywhere in the world (GametechWiki: *"THERE
-ARE CURRENTLY NO EMULATORS FOR THIS DEVICE"*) — the M2 Android host is next, so
-Dorado remains deliberately early.
+**M0 + M1 complete, plus ZCSTFS volume parsing and the official-app runtime.**
+Container parsing (`.ccgame`/`.zcp`), the ZCSTFS mini filesystem, a working
+desktop XNA 3.1 runtime that renders golden frames, and the clean-room surface
+the official titles bind against are implemented and covered by **79 tests**.
+The decompiled official-app corpus runs headlessly: **39 of 54 framework-path
+titles** in the latest full smoke run (calculator, alarm, calendar, checkers,
+solitaire, hearts, spades, notes, twitter, Zune Reader, WordMonger and more);
+the remaining failures are app-specific (see
+`docs/official-app-corpus.md`). A native `ZDK` compatibility bridge provides
+image decode (stb_image), TrueType font rasterization (stb_truetype) and a
+stubbed GLES2 surface for the app-local `Microsoft.Xna.Zune.dll`.
 
 | Milestone | Scope | Status |
 |---|---|---|
 | M0 | `.ccgame` (CAB/XCab) + `.zcp` (NX) parsers, CLI, tests | ✅ done |
 | M1 | Desktop XNA 3.1 shim; run homebrew prebuilt apps; golden frames | ✅ done |
 | M1.5 | ZCSTFS volume reader (runtime volume verified block-by-block), AES key seam | ✅ done |
+| M3 | Official-app runtime: XNA surface, XNB pipeline, ZDK bridge, corpus smoke | 🟡 39/54 titles |
 | M2 | Android host (EGL/GLES3/AAudio) + `dorado-hd` module | ⬜ |
-| M3 | Corpus coverage, XNB types, `.ccgame`→`.zcp` writer | ⬜ |
 | M4 | User-supplied DRM key bridge (key file shipped; device keypack needed) | 🟡 seam |
 | M5 | Optional full-system Tegra APX 2600 + WinCE 6.0 core | ⬜ |
 
@@ -128,6 +133,17 @@ $CLI inspect path/to/runtimeZune.v3.1.zcp       # ZCSTFS volume, no key needed
 $CLI unpack  path/to/runtimeZune.v3.1.zcp out/  # extract the ten runtime assemblies
 $CLI inspect path/to/extracted/GametitleApp     # an extracted application directory
 $CLI unpack  "Alarm Clock.zcp" out/ --key-file keys.json   # owned key (docs/zcp-decryption.md)
+```
+
+Running official decompiled titles needs the native ZDK bridge and (optionally)
+the external Zegoe font corpus:
+
+```bash
+native/zdk-bridge/build.sh
+export DORADO_ZDK_LIB=$PWD/native/zdk-bridge/libZDK.so
+export DORADO_FONT_DIR=../zune-hd-disassembly/assets/fonts
+$CLI run "<decompiled-app>/gametitle/584E07D1" --frames 60
+python3 tools/smoke_official.py      # 54 framework-path titles
 ```
 
 Requires the .NET 8 SDK. The Android host (`net8.0-android`) additionally

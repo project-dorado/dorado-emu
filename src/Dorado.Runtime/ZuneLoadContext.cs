@@ -44,6 +44,11 @@ internal sealed class ZuneLoadContext : AssemblyLoadContext
 
         if (_overrides.TryGetValue(name, out Assembly? overrideAssembly))
         {
+            if (Environment.GetEnvironmentVariable("DORADO_ZDK_DEBUG") == "1")
+            {
+                Console.Error.WriteLine($"[alc] {name} -> {overrideAssembly.Location}");
+            }
+
             return overrideAssembly;
         }
 

@@ -1,9 +1,40 @@
 # Official app corpus (external) and running official titles
 
-**Status:** the official apps are now available as **plaintext extracted trees**,
-and Dorado can inspect/run extracted application directories. Running the
-official titles end-to-end still needs a larger XNA surface — the gap list is
-below.
+**Status (2026-09-11):** the official apps are available as **plaintext
+extracted trees**, and the framework-path titles now **run headlessly**.
+`tools/smoke_official.py` executes the 54 framework-path titles from the
+decompiled corpus: **39 ran in the latest full run** (41 have passed at least
+once; a few titles have background-thread races), including calculator, alarm,
+calendar, checkers, solitaire, hearts, spades, notes, twitter, zunereader and
+wordmonger. The remaining failures are app-specific and listed below.
+
+## Running a title
+
+```bash
+native/zdk-bridge/build.sh                       # libZDK.so (image + font decode, ZDKGL stubs)
+export DORADO_ZDK_LIB=$PWD/native/zdk-bridge/libZDK.so
+export DORADO_FONT_DIR=../zune-hd-disassembly/assets/fonts   # Zegoe et al. (external)
+
+dorado run "/path/to/decompiled/<app>/gametitle/584E07D1" --frames 60
+python3 tools/smoke_official.py                  # all framework-path titles
+```
+
+`Dorado.Runtime.ZuneLoadContext` resolves the app-local
+`Microsoft.Xna.Zune.dll` P/Invokes (`ZDK`/`MEDIA`) to the bridge library; the
+shim resolves its own image-decoder import the same way. GL-path titles (7
+titles that use `GlSpriteBatch`/ZDKGL) load but render nothing yet.
+
+## Remaining framework-path failures (latest run)
+
+| App | Category | Detail |
+|---|---|---|
+| `hexic`, `sudoku`, `splatter-bug` | ZuneGamesLib component model | NullReference inside `ComponentBuilder`/font setup. |
+| `chess`, `space-battle-2`, `texasholdem`, `shufflebyalbum`, `decoder-ring` | Background loaders | Titles load content on worker threads that fault. |
+| `fan-prediction`, `weather` | Dead network services | Web-service call fails on a worker. |
+| `drummachine` | Corpus gap | `Sound\Tick` is absent from the published tree. |
+| `msnmoney`, `musicquiz`, `supernova`, `wordmonger` | Timing / collections | Collection-modified and timeout races in the app's own loops. |
+
+## Gap list for official titles
 
 ## The corpus
 
@@ -50,33 +81,36 @@ a lazy file reader, so nothing is duplicated on disk.
   maps `Microsoft.Xna.Framework` / `.Game` references by name, so the
   Zune-specific public key tokens (`83fd262b2676676b`, `e92a8b81eba7ceb7`)
   do not need to match the shims.
-- `ZuneLoadContext.LoadAppAssembly` clears the PE `32BITREQ` flag: Zune Compact
-  Framework assemblies are IL-only but carry it, and modern .NET refuses to
-  load them unchanged.
-- The runtime volume supplies the XNA 3.1 framework assemblies; the emulator's
-  shim (`Dorado.Xna`) covers the homebrew surface and passes M1 golden frames.
+- `ZuneLoadContext.LoadAppAssembly` clears the PE `32BITREQ` flag, and resolves
+  the `ZDK`/`MEDIA` P/Invokes of `Microsoft.Xna.Zune` to the native bridge.
+- The shim now implements the surface the 54 framework-path titles need:
+  the game/component model and services, math/primitives, graphics resources,
+  textures (`SetData`/`GetData`, render targets, scissor, presentation
+  settings), `SpriteFont`/`DrawString`, the full XNB type-reader pipeline
+  (value types raw, reference types index-addressed, generic
+  List/Array/Dictionary, app-local reflective readers), storage and
+  `Guide` selection, media/net stubs, and audio.
+- Titles built for Windows keep working on a case-sensitive filesystem:
+  `ContentManager` resolves assets case-insensitively, tries asset names that
+  already include the root, decodes image assets (PNG/JPEG/BMP) through the
+  native ZDK bridge, and the extractor links Windows-style path aliases for
+  hard-coded `"Content\\Images\\..."` strings.
+- `Microsoft.Xna.Framework.InvariantGlobalization=false` for the CLI/tests so
+  titles that call `CultureInfo` run.
 
-## Gap list for official titles
+## Gap list (updated 2026-09-11)
 
-The first failure after the loader fixes is a missing shim type; the required
-surface (from `ZuneAppLib.dll`, `Microsoft.Xna.Zune.dll`, and the app
-assemblies) is:
+Everything in the original gap table (primitives, component model, graphics,
+audio, content readers, storage, gamer services, media, input) is implemented.
+What remains is app-specific:
 
-| Area | Missing members |
-|---|---|
-| Primitives | `Matrix`, `Quaternion`, `Plane`/`PlaneIntersectionType`, `Vector4`, `BoundingSphere`, `BoundingFrustum`, `MathHelper`, `Point` (added) |
-| Game framework | `GameComponent`, `DrawableGameComponent`, `GameWindow`, `GameServiceContainer`, `IGraphicsDeviceManager`, `Game.Services` |
-| Graphics | `SpriteFont`, `SpriteBlendMode`, `SpriteSortMode`, `SaveStateMode`, `SetDataOptions`, `GraphicsResource`, `OutOfVideoMemoryException` |
-| Audio | `SoundEffect`, `SoundEffectInstance`, `SoundState`, `InstancePlayLimitException` |
-| Content | `ContentReader`, `ContentTypeReader<T>`; `Microsoft.Xna.Zune`'s own readers (`GlTextureReader`, `GlFontReader`, `GlModelReader`, `GlSpriteFontReader`) run against these and decode the Zune `.xnb` formats |
-| Storage | `StorageDevice`, `StorageContainer` (save games) |
-| GamerServices | `Guide.BeginShowStorageDeviceSelector` / `EndShowStorageDeviceSelector` |
-| Media | `Media.Song`, `Media.MediaPlayer` (background playback) |
-| Input | `Accelerometer`, `TouchPanel` extensions used by `ZuneAppLib` |
-
-Recommended order: primitives/math → game framework (`GameComponent` tree,
-`Game.Services`) → content reader plumbing (this is what loads real content) →
-audio/storage/gamer services stubs → media.
+- ZuneGamesLib component localization (`hexic`, `sudoku`, `splatter-bug`)
+  hits a null inside `ComponentBuilder`/font setup.
+- Worker-thread loaders fault in `chess`, `space-battle-2`, `texasholdem`,
+  `shufflebyalbum`, `decoder-ring`, `fan-prediction` and `weather`.
+- `drummachine` needs `Sound\Tick`, which the published tree does not contain.
+- `msnmoney`, `musicquiz`, `supernova` and `wordmonger` have timing races.
+- GL-path titles need the real `ZDKGL_*` → host-GL bridge (stubs only today).
 
 ## Legal
 
