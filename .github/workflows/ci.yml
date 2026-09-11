@@ -12,6 +12,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Dorado.Cli.Ipc references the sibling-repo project
+      # project-dorado/dorado/src/Dorado.Plugins.Protocol (pure POCO JSON-RPC
+      # types). Check it out and expose it at the sibling path the project
+      # reference expects. The repo is public, so the default token works.
+      - uses: actions/checkout@v4
+        with:
+          repository: project-dorado/dorado
+          path: _deps/dorado
+          fetch-depth: 1
+      - name: Expose sibling dependency
+        run: ln -s "$GITHUB_WORKSPACE/_deps/dorado" "$GITHUB_WORKSPACE/../dorado"
+
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
