@@ -44,5 +44,4 @@ jobs:
       # Golden-frame renderer regressions are part of M1RuntimeTests; they
       # no-op when the local corpus is absent, so this stays green.
       - name: Corpus-backed golden frames (when present)
-        run: dotnet test Dorado.sln -c Release --no-build --nologo \
-          --filter "FullyQualifiedName~M1RuntimeTests"
+        run: dotnet test Dorado.sln -c Release --no-build --nologo --filter "FullyQualifiedName~M1RuntimeTests"
