@@ -3,10 +3,10 @@
 **Status (2026-09-11):** the official apps are available as **plaintext
 extracted trees**, and the framework-path titles now **run headlessly**.
 `tools/smoke_official.py` executes the 54 framework-path titles from the
-decompiled corpus: **39 ran in the latest full run** (41 have passed at least
-once; a few titles have background-thread races), including calculator, alarm,
-calendar, checkers, solitaire, hearts, spades, notes, twitter, zunereader and
-wordmonger. The remaining failures are app-specific and listed below.
+decompiled corpus: **50 of 54 ran in the latest full run**, including every title
+named in the milestone (calculator, alarm, calendar, checkers, solitaire,
+hearts, spades, notes, twitter, Zune Reader, WordMonger, Hexic and
+Splatter Bug). The four remaining failures are external blockers listed below.
 
 ## Running a title
 
@@ -28,11 +28,13 @@ titles that use `GlSpriteBatch`/ZDKGL) load but render nothing yet.
 
 | App | Category | Detail |
 |---|---|---|
-| `hexic`, `sudoku`, `splatter-bug` | ZuneGamesLib component model | NullReference inside `ComponentBuilder`/font setup. |
-| `chess`, `space-battle-2`, `texasholdem`, `shufflebyalbum`, `decoder-ring` | Background loaders | Titles load content on worker threads that fault. |
-| `fan-prediction`, `weather` | Dead network services | Web-service call fails on a worker. |
 | `drummachine` | Corpus gap | `Sound\Tick` is absent from the published tree. |
-| `msnmoney`, `musicquiz`, `supernova`, `wordmonger` | Timing / collections | Collection-modified and timeout races in the app's own loops. |
+| `sudoku` | Corpus gap | `Content/Puzzles/` is empty in the published tree (`Database.xml` missing). |
+| `fan-prediction` | Dead service | Web-service call faults on a worker; needs a backend. |
+| `msnmoney` | Dead service | `ZuneWebRequest` needs the Zune cloud job APIs. |
+
+The GL-path titles (7) still need the real `ZDKGL_*` → host-GL bridge; they
+load and run with the stub GL surface but render nothing.
 
 ## Gap list for official titles
 

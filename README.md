@@ -36,11 +36,11 @@ XNA graphics/audio/input onto the host platform.
 Container parsing (`.ccgame`/`.zcp`), the ZCSTFS mini filesystem, a working
 desktop XNA 3.1 runtime that renders golden frames, and the clean-room surface
 the official titles bind against are implemented and covered by **79 tests**.
-The decompiled official-app corpus runs headlessly: **39 of 54 framework-path
+The decompiled official-app corpus runs headlessly: **50 of 54 framework-path
 titles** in the latest full smoke run (calculator, alarm, calendar, checkers,
-solitaire, hearts, spades, notes, twitter, Zune Reader, WordMonger and more);
-the remaining failures are app-specific (see
-`docs/official-app-corpus.md`). A native `ZDK` compatibility bridge provides
+solitaire, hearts, spades, notes, twitter, Zune Reader, WordMonger, Hexic and
+more); the four remaining are two upstream corpus gaps and two dead-network
+clients (see `docs/official-app-corpus.md`). A native `ZDK` compatibility bridge provides
 image decode (stb_image), TrueType font rasterization (stb_truetype) and a
 stubbed GLES2 surface for the app-local `Microsoft.Xna.Zune.dll`.
 
@@ -49,7 +49,7 @@ stubbed GLES2 surface for the app-local `Microsoft.Xna.Zune.dll`.
 | M0 | `.ccgame` (CAB/XCab) + `.zcp` (NX) parsers, CLI, tests | ✅ done |
 | M1 | Desktop XNA 3.1 shim; run homebrew prebuilt apps; golden frames | ✅ done |
 | M1.5 | ZCSTFS volume reader (runtime volume verified block-by-block), AES key seam | ✅ done |
-| M3 | Official-app runtime: XNA surface, XNB pipeline, ZDK bridge, corpus smoke | 🟡 39/54 titles |
+| M3 | Official-app runtime: XNA surface, XNB pipeline, ZDK bridge, corpus smoke | 🟡 50/54 titles |
 | M2 | Android host (EGL/GLES3/AAudio) + `dorado-hd` module | ⬜ |
 | M4 | User-supplied DRM key bridge (key file shipped; device keypack needed) | 🟡 seam |
 | M5 | Optional full-system Tegra APX 2600 + WinCE 6.0 core | ⬜ |
