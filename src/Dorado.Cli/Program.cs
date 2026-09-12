@@ -15,6 +15,19 @@ internal static class Program
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
             Console.Error.WriteLine($"unhandled: {e.ExceptionObject}");
 
+        if (Environment.GetEnvironmentVariable("DORADO_TRACE") == "2")
+        {
+            AppDomain.CurrentDomain.FirstChanceException += (_, e) =>
+            {
+                string? stack = e.Exception.StackTrace;
+                if (stack is not null && !stack.StartsWith("   at System.Reflection", StringComparison.Ordinal))
+                {
+                    Console.Error.WriteLine($"first-chance {e.Exception.GetType().Name}: {e.Exception.Message}");
+                    Console.Error.WriteLine(stack);
+                }
+            };
+        }
+
         if (args.Length == 0)
         {
             PrintUsage();
@@ -208,6 +221,7 @@ internal static class Program
         int frames = 60;
         string? outPath = null;
         bool hash = false;
+        bool keep = false;
         for (int i = 2; i < args.Length; i++)
         {
             switch (args[i])
@@ -220,6 +234,9 @@ internal static class Program
                     break;
                 case "--hash":
                     hash = true;
+                    break;
+                case "--keep":
+                    keep = true;
                     break;
                 case "--key-file" when i + 1 < args.Length:
                     i++;
@@ -235,6 +252,7 @@ internal static class Program
             Graphics = backend,
             Input = ScriptedInputSource.Empty,
             FrameLimit = frames,
+            KeepWorkingDirectory = keep,
             OnFrameRendered = frame =>
             {
                 if (outPath is not null && frame == frames - 1)

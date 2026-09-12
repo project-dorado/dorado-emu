@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text;
 using Dorado.Containers;
@@ -79,7 +80,7 @@ public static class ZuneAppRunner
             Directory.SetCurrentDirectory(originalCwd);
             if (!options.KeepWorkingDirectory)
             {
-                TryDelete(directory);
+                ScheduleDelete(directory);
             }
         }
     }
@@ -219,6 +220,9 @@ public static class ZuneAppRunner
     /// </summary>
     private static void CreateWindowsPathAliases(string directory)
     {
+        string parent = Path.GetDirectoryName(directory) ?? ".";
+        string appName = Path.GetFileName(directory);
+
         foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
         {
             string name = Path.GetFileName(file);
@@ -229,36 +233,129 @@ public static class ZuneAppRunner
 
             string relative = Path.GetRelativePath(directory, file);
             string[] parts = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+            // Aliases inside the title directory for Path.Combine-style callers.
             for (int i = 0; i < parts.Length - 1; i++)
             {
                 string alias = i == 0
                     ? Path.Combine(directory, string.Join('\\', parts))
                     : Path.Combine(directory, Path.Combine(parts[..i]), string.Join('\\', parts[i..]));
-                if (File.Exists(alias))
-                {
-                    continue;
-                }
+                TryLink(file, alias);
+            }
 
+            // Alias beside the title directory for titles that concatenate a
+            // Windows-style suffix onto the absolute title location, producing
+            // "<appdir>\Content\Language\en.xml" on the host.
+            TryLink(file, Path.Combine(parent, appName + "\\" + string.Join('\\', parts)));
+        }
+    }
+
+    private static void TryLink(string target, string alias)
+    {
+        if (File.Exists(alias))
+        {
+            return;
+        }
+
+        try
+        {
+            File.CreateSymbolicLink(alias, target);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+        {
+            try
+            {
+                File.Copy(target, alias);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    private static readonly ConcurrentQueue<string> PendingDeletes = new();
+    private static int _cleanupInstalled;
+
+    /// <summary>
+    /// Queues the extracted title directory for deletion at process exit.
+    /// Titles start background loader threads; deleting the directory while
+    /// they still run turns into spurious file-not-found exceptions.
+    /// </summary>
+    private static void ScheduleDelete(string directory)
+    {
+        PendingDeletes.Enqueue(directory);
+        if (Interlocked.Exchange(ref _cleanupInstalled, 1) == 0)
+        {
+            AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+            {
+                while (PendingDeletes.TryDequeue(out string? path))
+                {
+                    TryDelete(path);
+                }
+            };
+
+            SweepStaleDirectories();
+        }
+    }
+
+    private static void SweepStaleDirectories()
+    {
+        try
+        {
+            string root = Path.Combine(Path.GetTempPath(), "dorado");
+            if (!Directory.Exists(root))
+            {
+                return;
+            }
+
+            DateTime cutoff = DateTime.UtcNow.AddHours(-24);
+            foreach (string entry in Directory.EnumerateFileSystemEntries(root))
+            {
                 try
                 {
-                    File.CreateSymbolicLink(alias, file);
+                    if (File.GetLastWriteTimeUtc(entry) < cutoff)
+                    {
+                        if (Directory.Exists(entry))
+                        {
+                            Directory.Delete(entry, recursive: true);
+                        }
+                        else
+                        {
+                            File.Delete(entry);
+                        }
+                    }
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
-                    try
-                    {
-                        File.Copy(file, alias);
-                    }
-                    catch (IOException)
-                    {
-                    }
                 }
             }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
         }
     }
 
     private static void TryDelete(string directory)
     {
+        try
+        {
+            string? parent = Path.GetDirectoryName(directory);
+            string appName = Path.GetFileName(directory);
+            if (parent is not null && Directory.Exists(parent))
+            {
+                foreach (string alias in Directory.EnumerateFiles(parent, "*", SearchOption.TopDirectoryOnly))
+                {
+                    if (Path.GetFileName(alias).StartsWith(appName + "\\", StringComparison.Ordinal))
+                    {
+                        File.Delete(alias);
+                    }
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+
         try
         {
             Directory.Delete(directory, recursive: true);

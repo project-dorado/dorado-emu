@@ -19,7 +19,7 @@ public class Game : IDisposable
 
     public Game()
     {
-        Content = new ContentManager();
+        Content = new ContentManager(Services);
         Window = new GameWindow();
         Window.Title = GetType().Assembly.GetName().Name ?? "Dorado";
         GraphicsDevice = new GraphicsDevice(PlatformHost.Graphics);
@@ -391,6 +391,8 @@ public class GraphicsDeviceManager : IGraphicsDeviceService, IDisposable, IGraph
     public GraphicsDeviceManager(Game game)
     {
         _game = game ?? throw new ArgumentNullException(nameof(game));
+        game.Services.AddService(typeof(IGraphicsDeviceService), this);
+        game.Services.AddService(typeof(IGraphicsDeviceManager), this);
     }
 
     public GraphicsDevice GraphicsDevice => _game.GraphicsDevice;

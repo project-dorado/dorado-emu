@@ -1,3 +1,4 @@
+using Dorado.Platform;
 using Microsoft.Xna.Framework.Graphics;
 
 namespace Microsoft.Xna.Framework.Content;
@@ -5,12 +6,15 @@ namespace Microsoft.Xna.Framework.Content;
 /// <summary>Loads XNB content relative to a root directory.</summary>
 public class ContentManager : IDisposable
 {
+    private string _rootDirectory = string.Empty;
+
     public ContentManager()
+        : this(null!, string.Empty)
     {
     }
 
     public ContentManager(IServiceProvider serviceProvider)
-        : this(serviceProvider, "Content")
+        : this(serviceProvider, string.Empty)
     {
     }
 
@@ -22,7 +26,24 @@ public class ContentManager : IDisposable
 
     public IServiceProvider? ServiceProvider { get; }
 
-    public string RootDirectory { get; set; } = "Content";
+    /// <summary>
+    /// The content root, resolved against the title's install directory exactly
+    /// like the device runtime (<c>Path.GetFullPath(TitleLocation + value)</c>).
+    /// Titles rely on this being absolute: for example a ZuneGames title builds
+    /// <c>RootDirectory + "\\Content\\Language"</c> for its localization file.
+    /// </summary>
+    public string RootDirectory
+    {
+        get => _rootDirectory;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            string baseDirectory = string.IsNullOrEmpty(PlatformHost.AppDirectory)
+                ? Directory.GetCurrentDirectory()
+                : PlatformHost.AppDirectory;
+            _rootDirectory = Path.GetFullPath(Path.Combine(baseDirectory, value));
+        }
+    }
 
     public virtual T Load<T>(string assetName)
     {
@@ -120,6 +141,7 @@ public class ContentManager : IDisposable
             string? resolved = Path.IsPathRooted(name)
                 ? ResolveExisting(name + extension)
                 : ResolveExisting(Path.Combine(RootDirectory, name + extension)) ??
+                  ResolveExisting(Path.Combine(RootDirectory, "Content", name + extension)) ??
                   ResolveExisting(name + extension);
             if (resolved is not null)
             {
