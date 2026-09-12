@@ -222,6 +222,7 @@ public static class ZuneAppRunner
     {
         string parent = Path.GetDirectoryName(directory) ?? ".";
         string appName = Path.GetFileName(directory);
+        var createdDirectories = new HashSet<string>(StringComparer.Ordinal);
 
         foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories))
         {
@@ -243,10 +244,34 @@ public static class ZuneAppRunner
                 TryLink(file, alias);
             }
 
-            // Alias beside the title directory for titles that concatenate a
-            // Windows-style suffix onto the absolute title location, producing
-            // "<appdir>\Content\Language\en.xml" on the host.
+            // Alias beside the title directory for fully Windows-style
+            // concatenations ("<appdir>\Content\Language\en.xml").
             TryLink(file, Path.Combine(parent, appName + "\\" + string.Join('\\', parts)));
+
+            // Mirror directories beside the title directory for mixed
+            // separators, e.g. "<appdir>\Content\Textures/Starfield/x.png":
+            // the first k segments become one backslash-joined directory name,
+            // the remainder stays a normal tree.
+            for (int k = 1; k < parts.Length; k++)
+            {
+                string mirror = Path.Combine(parent, appName + "\\" + string.Join('\\', parts[..k]));
+                if (createdDirectories.Add(mirror))
+                {
+                    Directory.CreateDirectory(mirror);
+                }
+
+                string targetDirectory = mirror;
+                for (int j = k; j < parts.Length - 1; j++)
+                {
+                    targetDirectory = Path.Combine(targetDirectory, parts[j]);
+                    if (createdDirectories.Add(targetDirectory))
+                    {
+                        Directory.CreateDirectory(targetDirectory);
+                    }
+                }
+
+                TryLink(file, Path.Combine(targetDirectory, parts[^1]));
+            }
         }
     }
 
@@ -343,9 +368,18 @@ public static class ZuneAppRunner
             string appName = Path.GetFileName(directory);
             if (parent is not null && Directory.Exists(parent))
             {
-                foreach (string alias in Directory.EnumerateFiles(parent, "*", SearchOption.TopDirectoryOnly))
+                foreach (string alias in Directory.EnumerateFileSystemEntries(parent))
                 {
-                    if (Path.GetFileName(alias).StartsWith(appName + "\\", StringComparison.Ordinal))
+                    if (!Path.GetFileName(alias).StartsWith(appName + "\\", StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    if (Directory.Exists(alias))
+                    {
+                        Directory.Delete(alias, recursive: true);
+                    }
+                    else
                     {
                         File.Delete(alias);
                     }

@@ -29,6 +29,13 @@ public static class PlatformHost
 
     public static bool RunForever { get; set; }
 
+    /// <summary>
+    /// When true the game calls <c>UnloadContent</c> on loop exit. Frame-limited
+    /// headless runs leave it false: a title's queued callbacks run during
+    /// shutdown and would otherwise fault against unloaded content.
+    /// </summary>
+    public static bool UnloadOnExit { get; set; }
+
     /// <summary>Invoked after each presented frame with the zero-based frame index.</summary>
     public static Action<int>? OnFrameRendered { get; set; }
 

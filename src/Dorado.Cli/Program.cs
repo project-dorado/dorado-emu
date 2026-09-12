@@ -40,9 +40,10 @@ internal static class Program
             return 0;
         }
 
+        int exitCode;
         try
         {
-            return args[0].ToLowerInvariant() switch
+            exitCode = args[0].ToLowerInvariant() switch
             {
                 "inspect" => Inspect(args),
                 "unpack" => Unpack(args),
@@ -55,8 +56,15 @@ internal static class Program
         catch (Exception ex) when (ex is IOException or InvalidDataException or NotSupportedException or UnauthorizedAccessException or ZuneAppException)
         {
             Console.Error.WriteLine($"error: {ex.Message}");
-            return 2;
+            exitCode = 2;
         }
+
+        // A stopped title can leave foreground loader threads behind; as the
+        // host, exit rather than wait for them (process-exit cleanup still runs).
+        Console.Out.Flush();
+        Console.Error.Flush();
+        Environment.Exit(exitCode);
+        return exitCode;
     }
 
     private static async Task RunIpcAsync()

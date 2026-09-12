@@ -45,7 +45,44 @@ public class ContentManager : IDisposable
         }
     }
 
-    public virtual T Load<T>(string assetName)
+    public virtual T Load<T>(string assetName) => ReadAsset<T>(assetName, null);
+
+    /// <summary>
+    /// Reads an asset: the entry point derived content managers call. It must
+    /// never call back into the virtual <see cref="Load{T}"/>, or subclasses
+    /// that call <c>ReadAsset</c> from their own <c>Load</c> override recurse
+    /// forever (Noodles does exactly this).
+    /// </summary>
+    public T ReadAsset<T>(string assetName, Action<IDisposable>? recordDisposableObject)
+    {
+        T asset = ReadXnbAsset<T>(assetName);
+        if (recordDisposableObject is not null && asset is IDisposable disposable)
+        {
+            recordDisposableObject(disposable);
+        }
+
+        return asset;
+    }
+
+    public virtual void Unload()
+    {
+    }
+
+    public void Dispose()
+    {
+        Dispose(true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+    }
+
+    protected virtual Stream OpenStream(string assetName) =>
+        File.OpenRead(ResolvePathOrNull(assetName) ??
+            throw new FileNotFoundException($"Content asset '{assetName}' was not found.", assetName));
+
+    private T ReadXnbAsset<T>(string assetName)
     {
         string? path = ResolvePathOrNull(assetName);
         if (path is null)
@@ -78,40 +115,6 @@ public class ContentManager : IDisposable
             $"Content '{assetName}' is a {value.GetType().Name}, not {typeof(T).Name}.");
     }
 
-    /// <summary>
-    /// Loads an asset and hands any <see cref="IDisposable"/> result to
-    /// <paramref name="recordDisposableObject"/> for later unloading, matching
-    /// the XNA 3.1 content pipeline contract.
-    /// </summary>
-    public T ReadAsset<T>(string assetName, Action<IDisposable>? recordDisposableObject)
-    {
-        T asset = Load<T>(assetName);
-        if (recordDisposableObject is not null && asset is IDisposable disposable)
-        {
-            recordDisposableObject(disposable);
-        }
-
-        return asset;
-    }
-
-    public virtual void Unload()
-    {
-    }
-
-    public void Dispose()
-    {
-        Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-    }
-
-    protected virtual Stream OpenStream(string assetName) =>
-        File.OpenRead(ResolvePathOrNull(assetName) ??
-            throw new FileNotFoundException($"Content asset '{assetName}' was not found.", assetName));
-
     private string? ResolvePathOrNull(string assetName)
     {
         string name = assetName
@@ -124,8 +127,11 @@ public class ContentManager : IDisposable
         }
 
         // Titles sometimes pass paths that already include the root directory
-        // (for example "Content\Audio\blank"); accept both resolutions.
+        // (for example "Content\\Audio\\blank"); accept both resolutions. The
+        // "<root>/Content" candidate keeps homebrew titles that never set
+        // RootDirectory working.
         return ResolveExisting(Path.Combine(RootDirectory, name)) ??
+               ResolveExisting(Path.Combine(RootDirectory, "Content", name)) ??
                ResolveExisting(name) ??
                ResolveExisting(Path.Combine(Directory.GetCurrentDirectory(), name));
     }

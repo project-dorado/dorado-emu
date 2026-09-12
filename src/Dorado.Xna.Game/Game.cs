@@ -81,7 +81,10 @@ public class Game : IDisposable
             }
 
             EndRun();
-            UnloadContent();
+            if (PlatformHost.UnloadOnExit)
+            {
+                UnloadContent();
+            }
         }
         finally
         {
